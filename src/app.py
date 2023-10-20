@@ -1,3 +1,4 @@
+from alpha_vantage.timeseries import TimeSeries
 import dash
 from dash import dcc, html, dash_table
 from dash.dependencies import Input, Output, State
@@ -6,11 +7,23 @@ import dash_bootstrap_components as dbc
 from dotenv import load_dotenv
 import os
 from pandas import json_normalize
-from tools.ameritrade_helper import get_specified_account, analyze_tda
+from tools.ameritrade_helper import tda_auth, get_specified_account, analyze_tda, get_quotes
+
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objs as go
+from plotly.subplots import make_subplots
+
+df1 = pd.DataFrame({
+    'x': [1, 2, 3, 4],
+    'y': [10, 11, 12, 13]
+})
 
 load_dotenv()
+chrome_driver_path = '../tools/chromedriver'
+token_path = '../res/token.json'
 
-display_style={"width": "36rem", "color": "#aea7f1"}
+display_style = {"width": "36rem", "color": "#aea7f1"}
 
 app = dash.Dash(
     __name__,
@@ -24,6 +37,7 @@ server = app.server
 
 # Is this necessary?
 app.config.suppress_callback_exceptions = False
+
 
 def create_card(title, id, style):
     """
@@ -40,6 +54,7 @@ def create_card(title, id, style):
         style=style,
     )
 
+
 def description_card():
     """
     :return: A Div containing dashboard title & descriptions.
@@ -54,6 +69,7 @@ def description_card():
             ),
         ],
     )
+
 
 def generate_control_card():
     """
@@ -79,6 +95,12 @@ def generate_control_card():
                 dbc.Col(create_card("Equity PNL", "equity-value-change", display_style), width=6),
             ]),
             html.Br(),
+            dcc.Dropdown(
+                id='dropdown',
+                options=[{'label': 'Major Indices', 'value': 'MAJOR_INDICES'},
+                         {'label': 'Bar Plot', 'value': 'BAR'}],
+                value='MAJOR_INDICES'  # Default value
+            ),
             html.Div(
                 className='padding-top-bot',
                 children=[
@@ -89,6 +111,7 @@ def generate_control_card():
             ),
         ]
     )
+
 
 @app.callback(
     [
@@ -111,8 +134,8 @@ def retrieve_account_data(refresh_btn__click):
     tda_account_id = os.getenv('TDA_ACCOUNT_ID')
     account = get_specified_account(account_id=tda_account_id,
                                     api_key=tda_api_key,
-                                    chrome_driver_path='../tools/chromedriver',
-                                    token_path='../res/token.json')
+                                    chrome_driver_path=chrome_driver_path,
+                                    token_path=token_path)
     account_data = analyze_tda(account)
     net_liquidating_value = account['securitiesAccount']['currentBalances']['liquidationValue']
     net_liquidating_value_change = (
@@ -140,11 +163,48 @@ def retrieve_account_data(refresh_btn__click):
 )
 def process_account_data(account_data):
     df = json_normalize(account_data['OPTION']['positions'], sep='_')
-    # df = pd.DataFrame(account_data['OPTION']['positions'])#[['shortQuantity', 'averagePrice']]
     return df.to_dict('records'), [{"name": i, "id": i} for i in df.columns]
 
 
-style_data_conditional=[
+@app.callback(
+    Output('graph', 'figure'),
+    Input('dropdown', 'value'),
+    State("account-data", "data"),
+    prevent_initial_call=False,
+)
+def update_graph(selected_value, account_data):
+    if selected_value == 'BAR':
+        call_options = account_data['OPTION']['long_market_value']
+        put_options = account_data['OPTION']['short_market_value']
+        equity = account_data['EQUITY']['total_market_value']
+        fig = px.bar(
+            x=['CALL', 'PUT', 'EQUITY'],
+            y=[call_options, put_options, equity],
+            labels={'x': 'Asset Type', 'y': 'Market Value'}
+        )
+    elif selected_value == 'MAJOR_INDICES':
+        symbols = ['$DJI', '$NDX.X', '$SPX.X']
+        quotes = get_quotes(symbols, api_key=os.getenv('TDA_API_KEY'),
+                            chrome_driver_path=chrome_driver_path, token_path=token_path)
+
+        fig = make_subplots(rows=1, cols=len(symbols),
+                            specs=[[{'type': 'indicator'}, {'type': 'indicator'}, {'type': 'indicator'}]])
+        for i, symbol in enumerate(symbols):
+            fig.add_trace(go.Indicator(
+                mode="number+delta",
+                value=float(quotes[symbol]['lastPrice']),
+                title={'text': symbol},
+                delta={'reference': quotes[symbol]['closePrice'], 'relative': True},
+            ),
+                row=1, col=i + 1
+            )
+
+    else:
+        fig = px.line(df1, x='x', y='y')
+    return fig
+
+
+style_data_conditional = [
     {
         'if': {
             'filter_query': '{{{}}} < {}'.format('currentDayProfitLoss', 0),
@@ -188,7 +248,7 @@ app.layout = html.Div(
         html.Div(
             id="banner",
             className="banner",
-            children=[html.Img(src=app.get_asset_url("bearden_logo.png"))],
+            children=[html.Img(src=app.get_asset_url("logo.png"))],
         ),
         # Left column
         html.Div(
@@ -198,14 +258,15 @@ app.layout = html.Div(
                 description_card(),
                 generate_control_card(),
                 html.Div(["initial child"], id="output-clientside", style={"display": "none"})
-                ],
+            ],
         ),
         # Right column
         html.Div(
             id="right-column",
             className="eight columns",
             children=[
-                html.B("Account"),
+                dcc.Graph(id='graph'),
+                html.Br(),
                 dash_table.DataTable(
                     id='datatable-interactivity',
                     editable=True,
@@ -220,7 +281,7 @@ app.layout = html.Div(
                     style_data_conditional=style_data_conditional,
                     # page_action='native',
                     # page_current=0,
-                    # page_size=10,
+                    page_size=10,
                     style_table={'overflowX': 'auto'},
                 ),
 
