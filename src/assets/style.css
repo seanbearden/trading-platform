@@ -1,0 +1,30 @@
+.Select--multi > .Select-control .Select-value, .Select-placeholder {
+    border: 1px solid grey;
+    border-radius: 4px;
+    background-color: #89dc73;
+    color: black;
+
+}
+
+.parent {
+  display: flex;
+  flex-direction: row;
+}
+
+.spacer {
+  flex-grow: 1;
+}
+
+.plot{
+    display: flex;
+    width: 50%
+}
+
+@media screen and (max-width: 1200px) {
+  .parent{
+    flex-direction: column;
+  }
+  .plot{
+    width: 100%
+  }
+}
