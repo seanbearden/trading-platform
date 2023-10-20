@@ -162,24 +162,33 @@ def analyze_tda(account):
         if asset_type == 'OPTION':
             long_market_value = sum(
                 [investment['marketValue'] for investment in details['positions'] if
-                 investment['instrument']['putCall'] ==
-                 'CALL'])
+                 investment['instrument']['putCall'] == 'CALL'])
+            current_day_long_pnl = sum(
+                [investment['currentDayProfitLoss'] for investment in details['positions'] if
+                 investment['instrument']['putCall'] == 'CALL'])
             short_market_value = sum(
                 [investment['marketValue'] for investment in details['positions'] if
-                 investment['instrument']['putCall'] ==
-                 'PUT'])
+                 investment['instrument']['putCall'] == 'PUT'])
+            current_day_short_pnl = sum(
+                [investment['currentDayProfitLoss'] for investment in details['positions'] if
+                 investment['instrument']['putCall'] == 'PUT'])
         elif asset_type == 'EQUITY':
             long_market_value = sum(
                 [investment['marketValue'] for investment in details['positions'] if investment['longQuantity'] > 0])
+            current_day_long_pnl = sum(
+                [investment['currentDayProfitLoss'] for investment in details['positions'] if investment['longQuantity'] > 0])
             short_market_value = sum(
                 [investment['marketValue'] for investment in details['positions'] if investment['shortQuantity'] > 0])
-        elif asset_type == "CASH":
-            pass
+            current_day_short_pnl = sum(
+                [investment['currentDayProfitLoss'] for investment in details['positions'] if investment['shortQuantity'] > 0])
+        # elif asset_type == "CASH":
+        #     pass
         else:
             raise Exception(f"Unknown asset type {asset_type}")
 
         investments[asset_type]['total_market_value'] = total_market_value
         investments[asset_type]['long_market_value'] = long_market_value
+        investments[asset_type]['current_day_long_pnl'] = current_day_long_pnl
         investments[asset_type]['short_market_value'] = short_market_value
-
+        investments[asset_type]['current_day_short_pnl'] = current_day_short_pnl
     return investments

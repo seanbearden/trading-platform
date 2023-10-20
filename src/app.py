@@ -2,7 +2,7 @@ import dash
 from dash import dcc, html, dash_table
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
-import dash_bootstrap_components as dbc  # You'll need to install dash-bootstrap-components
+import dash_bootstrap_components as dbc
 from dotenv import load_dotenv
 import os
 from pandas import json_normalize
@@ -10,11 +10,12 @@ from tools.ameritrade_helper import get_specified_account, analyze_tda
 
 load_dotenv()
 
-net_liquidating_value = 0
+display_style={"width": "36rem", "color": "#aea7f1"}
 
 app = dash.Dash(
     __name__,
     meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1"}],
+    external_stylesheets=[dbc.themes.BOOTSTRAP]
 )
 
 app.title = "Ameritrade Investment Dashboard"
@@ -23,6 +24,21 @@ server = app.server
 
 # Is this necessary?
 app.config.suppress_callback_exceptions = False
+
+def create_card(title, id, style):
+    """
+    :param title: to display
+    :param id: for reference
+    :param style: display style
+    :return: A Card for Div
+    """
+    return dbc.Card(
+        dbc.CardBody([
+            html.H4(title, className="card-title"),
+            html.H2(id=id, className="card-subtitle"),
+        ]),
+        style=style,
+    )
 
 def description_card():
     """
@@ -46,34 +62,22 @@ def generate_control_card():
     return html.Div(
         id="control-card",
         children=[
-            dbc.Card(
-                dbc.CardBody([
-                    html.H4("Net Liquidation Value", className="card-title"),
-                    html.H2(id="net-liquidation-value", className="card-subtitle"),
-                ]),
-                style={"width": "36rem", "color": "green"},
-            ),
-            dbc.Card(
-                dbc.CardBody([
-                    html.H4("Call Market Value", className="card-title"),
-                    html.H2(id="call-value", className="card-subtitle"),
-                ]),
-                style={"width": "36rem", "color": "green"},
-            ),
-            dbc.Card(
-                dbc.CardBody([
-                    html.H4("Put Market Value", className="card-title"),
-                    html.H2(id="put-value", className="card-subtitle"),
-                ]),
-                style={"width": "36rem", "color": "green"},
-            ),
-            dbc.Card(
-                dbc.CardBody([
-                    html.H4("Equity Value", className="card-title"),
-                    html.H2(id="equity-value", className="card-subtitle"),
-                ]),
-                style={"width": "36rem", "color": "green"},
-            ),
+            dbc.Row([
+                dbc.Col(create_card("Net Liquidation Value", "net-liquidation-value", display_style), width=6),
+                dbc.Col(create_card("Daily Change", "net-liquidation-value-change", display_style), width=6),
+            ]),
+            dbc.Row([
+                dbc.Col(create_card("Call Market Value", "call-value", display_style), width=6),
+                dbc.Col(create_card("Call PNL", "call-value-change", display_style), width=6),
+            ]),
+            dbc.Row([
+                dbc.Col(create_card("Put Market Value", "put-value", display_style), width=6),
+                dbc.Col(create_card("Put PNL", "put-value-change", display_style), width=6),
+            ]),
+            dbc.Row([
+                dbc.Col(create_card("Equity Value", "equity-value", display_style), width=6),
+                dbc.Col(create_card("Equity PNL", "equity-value-change", display_style), width=6),
+            ]),
             html.Br(),
             html.Div(
                 className='padding-top-bot',
@@ -90,9 +94,13 @@ def generate_control_card():
     [
         Output("account-data", "data"),
         Output('net-liquidation-value', 'children'),
+        Output('net-liquidation-value-change', 'children'),
         Output('call-value', 'children'),
+        Output('call-value-change', 'children'),
         Output('put-value', 'children'),
-        Output('equity-value', 'children')
+        Output('put-value-change', 'children'),
+        Output('equity-value', 'children'),
+        Output('equity-value-change', 'children')
     ],
     Input("refresh-btn", "n_clicks"),
     prevent_initial_call=False,
@@ -107,13 +115,21 @@ def retrieve_account_data(refresh_btn__click):
                                     token_path='../res/token.json')
     account_data = analyze_tda(account)
     net_liquidating_value = account['securitiesAccount']['currentBalances']['liquidationValue']
+    net_liquidating_value_change = (
+            net_liquidating_value - account['securitiesAccount']['initialBalances']['liquidationValue'])
 
     net_liquidating_value_str = f"${net_liquidating_value:,.0f}"
+    net_liquidating_value_change_str = f"${net_liquidating_value_change:,.0f}"
     call_value_str = f"${account_data['OPTION']['long_market_value']:,.0f}"
+    call_value_change_str = f"${account_data['OPTION']['current_day_long_pnl']:,.0f}"
     put_value_str = f"${account_data['OPTION']['short_market_value']:,.0f}"
+    put_value_change_str = f"${account_data['OPTION']['current_day_short_pnl']:,.0f}"
     equity_value_str = f"${account_data['EQUITY']['total_market_value']:,.0f}"
-    # df = pd.DataFrame(investments['OPTION']['positions'])
-    return account_data, net_liquidating_value_str, call_value_str, put_value_str, equity_value_str
+    equity_value_change_str = \
+        f"${account_data['EQUITY']['current_day_long_pnl'] + account_data['EQUITY']['current_day_short_pnl']:,.0f}"
+
+    return (account_data, net_liquidating_value_str, net_liquidating_value_change_str, call_value_str,
+            call_value_change_str, put_value_str, put_value_change_str, equity_value_str, equity_value_change_str)
 
 
 @app.callback(
