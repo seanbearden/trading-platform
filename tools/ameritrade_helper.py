@@ -62,6 +62,12 @@ def verify_entry(symbol, tda_api_key):
     return True
 
 
+def get_quotes(symbols, tda_auth_func=tda_auth, **kwargs):
+    client_ = tda_auth_func(**kwargs)
+    resp = client_.get_quotes(symbols)
+
+    return resp.json()
+
 def get_option_chain(symbol, contract_type, tda_api_key, tda_auth_func=tda_auth, **kwargs):
     client_ = tda_auth_func(tda_api_key)
     if contract_type == 'CALL':
