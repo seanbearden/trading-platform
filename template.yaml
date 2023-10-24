@@ -1,0 +1,40 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: An AWS Serverless Application to generate PDF reports and send via email.
+
+Resources:
+  MyApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Auth:
+        ApiKeyRequired: true
+
+  GenerateReportFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      ImageUri: 047672427450.dkr.ecr.us-east-1.amazonaws.com/create-stock-report:latest
+      MemorySize: 512
+      Timeout: 10
+      Handler: app.lambda_handler
+      Runtime: python3.11
+      Events:
+        HttpPost:
+          Type: Api
+          Properties:
+            Path: /report
+            Method: post
+            RestApiId:
+              Ref: MyApi
+      Policies:
+        - Statement:
+          - Effect: Allow
+            Action:
+              - ses:SendEmail
+              - ses:SendRawEmail
+            Resource: "*"
+
+Outputs:
+  ApiURL:
+    Description: "API endpoint URL for Prod stage"
+    Value: !Sub "https://${MyApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/report"

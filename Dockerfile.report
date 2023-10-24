@@ -1,0 +1,15 @@
+# Use an AWS-provided base image for your runtime (e.g., Python 3.11)
+FROM public.ecr.aws/lambda/python:3.11
+
+RUN mkdir ./tools
+
+# Copy function code and dependencies
+COPY src/create_stock_report/app.py ./
+COPY src/create_stock_report/requirements.txt ./
+COPY tools/ ./tools
+
+# Install dependencies
+RUN pip install -r requirements.txt
+
+# Set the CMD to your handler
+CMD ["app.lambda_handler"]

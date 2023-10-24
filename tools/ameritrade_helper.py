@@ -2,8 +2,12 @@ from tda import auth, client, orders
 from selenium import webdriver
 import logging
 import requests
-from tools.requests_helper import json_from_response
+import os
 
+if os.getenv('AWS_EXECUTION_ENV'):
+    from tools import json_from_response
+else:
+    from tools import json_from_response
 
 def tda_auth(api_key,
              chrome_driver_path,

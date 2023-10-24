@@ -1,13 +1,11 @@
-from alpha_vantage.timeseries import TimeSeries
 import dash
 from dash import dcc, html, dash_table
 from dash.dependencies import Input, Output, State
-from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
 from dotenv import load_dotenv
 import os
 from pandas import json_normalize
-from tools.ameritrade_helper import tda_auth, get_specified_account, analyze_tda, get_quotes
+from tools.ameritrade_helper import get_specified_account, analyze_tda, get_quotes
 
 import pandas as pd
 import plotly.express as px
