@@ -1,11 +1,6 @@
-# import matplotlib.dates as mdates
-import pandas as pd
-import matplotlib.pyplot as plt
-
-
 def calculate_ichimoku(df):
-    df['date'] = pd.to_datetime(df.index)
-    df.index = pd.to_datetime(df['date'])
+    # df['date'] = pd.to_datetime(df.index)
+    # df.index = pd.to_datetime(df['date'])
     high_prices = df['high']
     close_prices = df['close']
     low_prices = df['low']
