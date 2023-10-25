@@ -10,14 +10,41 @@ Resources:
       Auth:
         ApiKeyRequired: true
 
+  MyUsagePlan:
+    Type: "AWS::ApiGateway::UsagePlan"
+    Properties:
+      ApiStages:
+        - ApiId:
+            Ref: "MyApi"
+          Stage: "Prod"
+      Description: "A usage plan for important customers"
+      Quota:
+        Limit: 5000
+        Offset: 0
+        Period: "MONTH"
+      Throttle:
+        BurstLimit: 200
+        RateLimit: 100
+
+  MyApiKey:
+    Type: "AWS::ApiGateway::ApiKey"
+    Properties:
+      Description: "My API Key"
+      Enabled: true
+      GenerateDistinctId: true
+      Name: "MyAPIKey"
+      StageKeys:
+        - RestApiId:
+            Ref: "MyApi"
+          StageName: "Prod"
+
   GenerateReportFunction:
     Type: AWS::Serverless::Function
     Properties:
-      ImageUri: 047672427450.dkr.ecr.us-east-1.amazonaws.com/create-stock-report:latest
-      MemorySize: 512
-      Timeout: 10
-      Handler: app.lambda_handler
-      Runtime: python3.11
+      PackageType: Image
+      ImageConfig:
+        Command: [ "app.lambda_handler" ]
+      Timeout: 15
       Events:
         HttpPost:
           Type: Api
@@ -33,6 +60,24 @@ Resources:
               - ses:SendEmail
               - ses:SendRawEmail
             Resource: "*"
+        - Statement: # New policy statement to allow ssm:GetParameter action
+          - Effect: Allow
+            Action:
+              - ssm:GetParameter
+            Resource: arn:aws:ssm:us-east-1:047672427450:parameter/ALPHAVANTAGE_API_KEY
+    Metadata:
+      Dockerfile: Dockerfile.report
+      DockerContext: .
+      DockerTag: v1
+
+  UsagePlanKey:
+    Type: "AWS::ApiGateway::UsagePlanKey"
+    Properties:
+      KeyId:
+        Ref: "MyApiKey"
+      KeyType: "API_KEY"
+      UsagePlanId:
+        Ref: "MyUsagePlan"
 
 Outputs:
   ApiURL:
