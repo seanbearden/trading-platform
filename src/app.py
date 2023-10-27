@@ -18,7 +18,7 @@ df1 = pd.DataFrame({
 })
 
 load_dotenv()
-chrome_driver_path = '../tools/chromedriver'
+chrome_driver_path = '../chromedriver'
 token_path = '../res/token.json'
 
 display_style = {"width": "36rem", "color": "#aea7f1"}
