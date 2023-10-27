@@ -1,10 +1,7 @@
 # trading-platform
 A platform for monitoring and assessing various trading activities.
 
-This Python project is meant to assist my option-trading endeavors using TD Ameritrade. 
-
-Need to determine
-
+This Python project is meant to assist my option-trading endeavors using TD Ameritrade.
 
 
 ## Requirements
