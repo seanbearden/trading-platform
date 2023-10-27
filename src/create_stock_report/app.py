@@ -1,20 +1,25 @@
-import boto3
-import json
 from alpha_vantage.techindicators import TechIndicators
 from alpha_vantage.timeseries import TimeSeries
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-from reportlab.pdfgen import canvas
+import boto3
 from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+import json
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import mplfinance as mpf
+from reportlab.pdfgen import canvas
+import time
 from tools import calculate_ichimoku, delete_files
+
 
 def lambda_handler(event, context):
     # Parse input
-    body = json.loads(event.get('body', '{}'))
+    body = event.get('body', '{}')
+    if isinstance(body, str):
+        body = json.loads(body)
+
     periods_for_plot = body.get('periods_for_plot', 180)
     send_email = body.get('send_email', False)
     symbol = body.get('symbol', None)
@@ -54,7 +59,6 @@ def lambda_handler(event, context):
             '5. volume': 'volume',
         })
 
-
         ichimoku_df = calculate_ichimoku(data)
 
         # Plotting
@@ -91,14 +95,14 @@ def lambda_handler(event, context):
             else:
                 ax1.plot(dates, ichimoku_df_reduced[line], color=color)
         ax1.fill_between(dates, ichimoku_df_reduced['senkou_span_a'], ichimoku_df_reduced['senkou_span_b'],
-                        where=ichimoku_df_reduced['senkou_span_a'] >= ichimoku_df_reduced['senkou_span_b'],
-                        color='lightgreen',
+                         where=ichimoku_df_reduced['senkou_span_a'] >= ichimoku_df_reduced['senkou_span_b'],
+                         color='lightgreen',
                          zorder=0,
                          # label='Senkou Span A > B'
                          )
         ax1.fill_between(dates, ichimoku_df_reduced['senkou_span_a'], ichimoku_df_reduced['senkou_span_b'],
-                        where=ichimoku_df_reduced['senkou_span_a'] < ichimoku_df_reduced['senkou_span_b'],
-                        color='lightcoral',
+                         where=ichimoku_df_reduced['senkou_span_a'] < ichimoku_df_reduced['senkou_span_b'],
+                         color='lightcoral',
                          zorder=0,
                          # label='Senkou Span A < B'
                          )
@@ -114,10 +118,8 @@ def lambda_handler(event, context):
         # Save the plot to a file
         plot_file_path = "/tmp/ichimoku_plot.png"
         tmp_files.append(plot_file_path)
-        plt.savefig(plot_file_path, format='png') #, bbox_inches='tight')
+        plt.savefig(plot_file_path, format='png')  # , bbox_inches='tight')
         plt.show()
-
-
 
         # Draw the plot on the ReportLab canvas
         c.drawImage(plot_file_path, -100, 500, width=700, height=350)
@@ -147,8 +149,6 @@ def lambda_handler(event, context):
         plt.grid()
         # plt.show()
 
-
-
         # Save the plot to a file
         plot_file_path = "/tmp/plot.png"
         tmp_files.append(plot_file_path)
@@ -163,31 +163,38 @@ def lambda_handler(event, context):
         c.save()
 
         if send_email:
-            # Create MIME message
-            msg = MIMEMultipart()
-            msg['From'] = 'seanspins211@gmail.com'
-            msg['To'] = 'seanbearden@seanbearden.com'
-            msg['Subject'] = 'PDF Report'
+            parameter = ssm.get_parameter(Name='FROM_EMAIL', WithDecryption=True)
+            from_email = parameter['Parameter']['Value']
+            parameter = ssm.get_parameter(Name='TO_EMAILS', WithDecryption=True)
 
-            # Add text body (optional)
-            text = MIMEText('Please find the attached PDF report.', 'plain')
-            msg.attach(text)
+            to_emails = parameter['Parameter']['Value'].split(',')
+            for to_email in to_emails:
+                # Create MIME message
+                msg = MIMEMultipart()
+                msg['From'] = from_email
+                msg['To'] = to_email
+                msg['Subject'] = 'PDF Report'
 
-            # Attach PDF
-            with open("/tmp/report.pdf", "rb") as f:
-                part = MIMEBase('application', 'octet-stream')
-                part.set_payload(f.read())
-            encoders.encode_base64(part)
-            part.add_header('Content-Disposition', 'attachment; filename="report.pdf"')
-            msg.attach(part)
+                # Add text body (optional)
+                text = MIMEText('Please find the attached PDF report.', 'plain')
+                msg.attach(text)
 
-            # Send email
-            client = boto3.client('ses')
-            response = client.send_raw_email(
-                RawMessage={'Data': msg.as_string()},
-                Source=msg['From'],
-                Destinations=[msg['To']]
-            )
+                # Attach PDF
+                with open("/tmp/report.pdf", "rb") as f:
+                    part = MIMEBase('application', 'octet-stream')
+                    part.set_payload(f.read())
+                encoders.encode_base64(part)
+                part.add_header('Content-Disposition', 'attachment; filename="report.pdf"')
+                msg.attach(part)
+
+                # Send email
+                client = boto3.client('ses')
+                response = client.send_raw_email(
+                    RawMessage={'Data': msg.as_string()},
+                    Source=msg['From'],
+                    Destinations=[msg['To']]
+                )
+                time.sleep(1)
             delete_files(tmp_files)
             return {'statusCode': 200, 'body': 'Report sent successfully!'}
         else:
@@ -202,6 +209,6 @@ def lambda_handler(event, context):
 
 if __name__ == '__main__':
     response = lambda_handler(
-        {"body": "{\"report_type\": \"stock_analysis\", \"send_email\": false, \"symbol\": \"MSFT\"}"},
+        {"body": {"report_type": "stock_analysis", "send_email": True, "symbol": "MSFT"}},
         {})
     response
