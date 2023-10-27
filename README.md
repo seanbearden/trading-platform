@@ -1,18 +1,38 @@
 # trading-platform
-A platform for various trading activities
+A platform for monitoring and assessing various trading activities.
 
-This Python project is meant to assist my option-trading endeavors using TD Ameritrade. 
+This Python project is meant to assist my option-trading endeavors using TD Ameritrade.
 
-Vital to this project is an alert system. AWS products will be utilized in building the alert system. I need an 
-MySQL RDS, and a lambda function that runs on a schedule.
-
-In the development stage, this will be a Dash/Flask app that is hosted locally.
 
 ## Requirements
 * chromedriver in path: https://chromedriver.chromium.org. Confirm that version matches Google Chrome version.
 * TD Ameritrade API key: https://developer.tdameritrade.com
 * Alphavantage API key: https://www.alphavantage.co/support/#api-key
 * OpenAI API key: https://platform.openai.com/account/api-keys
+
+## Set Up
+1. Save Alphavantage API key to .env as `ALPHAVANTAGE_API_KEY` for local usage. Save the key to AWS System 
+   Manager->Parameter Store as `ALPHAVANTAGE_API_KEY` for AWS Lambda usage.
+2. Set Up Amazon Simple Email Service. 
+3. Store from email in AWS System 
+   Manager->Parameter as `FROM_EMAIL`. Store to emails in AWS System 
+   Manager->Parameter as a stringList named `TO_EMAILS`. Use commas to separate emails, no spaces.
+4. Build and deploy using SAM, must specify Docker context `DOCKER_ENDPOINT`. Follow [these](https://github.
+   com/aws/aws-sam-cli/issues/4329#issuecomment-1732670902) instructions to determine location of host.
+    ```bash
+    DOCKER_HOST=DOCKER_ENDPOINT sam build --use-container -t template.yaml
+    DOCKER_HOST=DOCKER_ENDPOINT sam deploy --guided
+
+    ```
+5. Test on API using body:
+   ```json
+    {
+        "report_type": "stock_analysis",
+        "send_email": true,
+        "symbol": "MSFT"
+    }
+    ```
+   
 
 ## Task 1
 ### Pull portfolio details from Ameritrade
@@ -24,6 +44,8 @@ In the development stage, this will be a Dash/Flask app that is hosted locally.
 
 ## Task 3
 ### Create ability to manually enter order and trigger text alerts.
+* Vital to this project is an alert system. AWS products will be utilized in building the alert system. I need an 
+MySQL RDS, and a lambda function that runs on a schedule.
 * Need basic interface on a Dash/Flask app. Need symbol, option contract date and strike, order price and quantity.
 * Send texts via Twilio to interested parties.
 * All entries should be logged in an RDS.
@@ -37,6 +59,8 @@ In the development stage, this will be a Dash/Flask app that is hosted locally.
 
 ## Task 5
 ### reporting
+
+
 
 ## TODO:
 * display open orders
