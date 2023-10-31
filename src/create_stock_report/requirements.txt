@@ -5,3 +5,5 @@ mplfinance==0.12.10b0
 pandas==2.1.1
 reportlab==4.0.6
 requests==2.31.0
+numpy~=1.23.5
+pyfinviz~=0.18
