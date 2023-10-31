@@ -11,7 +11,7 @@ import matplotlib.dates as mdates
 import mplfinance as mpf
 from reportlab.pdfgen import canvas
 import time
-from tools import calculate_ichimoku, delete_files
+from tools import calculate_ichimoku, delete_files, get_daily_adjusted_processed
 
 
 def lambda_handler(event, context):
@@ -49,15 +49,8 @@ def lambda_handler(event, context):
 
         # get technical indicators
         ts = TimeSeries(key=alphavantage_api_key, output_format='pandas')
-        data, meta_data = ts.get_daily(symbol=symbol, outputsize='full')
-        data = data.iloc[::-1]
-        data = data.rename(columns={
-            '1. open': 'open',
-            '2. high': 'high',
-            '3. low': 'low',
-            '4. close': 'close',
-            '5. volume': 'volume',
-        })
+        data, meta_data = ts.get_daily_adjusted(symbol=symbol, outputsize='full')
+        data = get_daily_adjusted_processed(data)
 
         ichimoku_df = calculate_ichimoku(data)
 
@@ -209,6 +202,6 @@ def lambda_handler(event, context):
 
 if __name__ == '__main__':
     response = lambda_handler(
-        {"body": {"report_type": "stock_analysis", "send_email": True, "symbol": "MSFT"}},
+        {"body": {"report_type": "stock_analysis", "send_email": True, "symbol": "COE"}},
         {})
     response

@@ -1,18 +1,21 @@
-def calculate_ichimoku(df):
-    # df['date'] = pd.to_datetime(df.index)
-    # df.index = pd.to_datetime(df['date'])
-    high_prices = df['high']
-    close_prices = df['close']
-    low_prices = df['low']
-    nine_period_high = high_prices.rolling(window=9).max()
-    nine_period_low = low_prices.rolling(window=9).min()
-    df['tenkan_sen'] = (nine_period_high + nine_period_low) / 2
-    twenty_six_period_high = high_prices.rolling(window=26).max()
-    twenty_six_period_low = low_prices.rolling(window=26).min()
-    df['kijun_sen'] = (twenty_six_period_high + twenty_six_period_low) / 2
-    df['senkou_span_a'] = ((df['tenkan_sen'] + df['kijun_sen']) / 2).shift(26)
-    fifty_two_period_high = high_prices.rolling(window=52).max()
-    fifty_two_period_low = low_prices.rolling(window=52).min()
-    df['senkou_span_b'] = ((fifty_two_period_high + fifty_two_period_low) / 2).shift(26)
-    df['chikou_span'] = close_prices.shift(-26)
-    return df
+def get_daily_adjusted_processed(data):
+    data = data.iloc[::-1]  # reverse order
+    data = data.rename(columns={
+        '1. open': 'open',
+        '2. high': 'high',
+        '3. low': 'low',
+        '4. close': 'close',
+        '5. adjusted close': 'adjusted close',
+        '6. volume': 'volume',
+        '7. dividend amount': 'dividend amount',
+        '8. split coefficient': 'split coefficient'
+        })
+    adjust_ratio = (data['adjusted close'] / data['close'])
+
+    data['open'] = data['open'] * adjust_ratio
+    data['high'] = data['high'] * adjust_ratio
+    data['low'] = data['low'] * adjust_ratio
+    data['close'] = data['adjusted close']
+    data = data.drop(['adjusted close', 'split coefficient'], axis=1)
+
+    return data
