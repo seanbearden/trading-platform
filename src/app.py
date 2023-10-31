@@ -5,7 +5,7 @@ import dash_bootstrap_components as dbc
 from dotenv import load_dotenv
 import os
 from pandas import json_normalize
-from tools.ameritrade_helper import get_specified_account, analyze_tda, get_quotes
+from tools.ameritrade_helper import get_specified_account_with_aws, analyze_tda, get_quotes_with_aws
 
 import pandas as pd
 import plotly.express as px
@@ -128,12 +128,7 @@ def generate_control_card():
 )
 def retrieve_account_data(refresh_btn__click):
     print('Retrieving investment data')
-    tda_api_key = os.getenv('TDA_API_KEY')
-    tda_account_id = os.getenv('TDA_ACCOUNT_ID')
-    account = get_specified_account(account_id=tda_account_id,
-                                    api_key=tda_api_key,
-                                    chrome_driver_path=chrome_driver_path,
-                                    token_path=token_path)
+    account = get_specified_account_with_aws()
     account_data = analyze_tda(account)
     net_liquidating_value = account['securitiesAccount']['currentBalances']['liquidationValue']
     net_liquidating_value_change = (
@@ -182,8 +177,7 @@ def update_graph(selected_value, account_data):
         )
     elif selected_value == 'MAJOR_INDICES':
         symbols = ['$DJI', '$NDX.X', '$SPX.X']
-        quotes = get_quotes(symbols, api_key=os.getenv('TDA_API_KEY'),
-                            chrome_driver_path=chrome_driver_path, token_path=token_path)
+        quotes = get_quotes_with_aws(symbols)
 
         fig = make_subplots(rows=1, cols=len(symbols),
                             specs=[[{'type': 'indicator'}, {'type': 'indicator'}, {'type': 'indicator'}]])
@@ -192,7 +186,7 @@ def update_graph(selected_value, account_data):
                 mode="number+delta",
                 value=float(quotes[symbol]['lastPrice']),
                 title={'text': symbol},
-                delta={'reference': quotes[symbol]['closePrice'], 'relative': True},
+                delta={'reference': quotes[symbol]['closePrice'], 'relative': True, 'valueformat': ".2%"},
             ),
                 row=1, col=i + 1
             )
