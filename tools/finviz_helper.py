@@ -1,5 +1,34 @@
+import pandas as pd
+from pyfinviz.screener import Screener
 import requests
 from time import sleep
+
+
+def get_sp500_tickers_sectors():
+    """Get tickers and sector data for S&P 500 components"""
+    options = [Screener.IndexOption.S_AND_P_500]
+    screener = Screener(filter_options=options, view_option=Screener.ViewOption.OVERVIEW,
+                        pages=[x for x in range(1, 27)])
+    df = pd.concat(screener.data_frames.values())
+    return df
+
+
+def get_nasdaq100_tickers_sectors():
+    """Get tickers and sector data for NASDAQ 100 components"""
+    options = [Screener.IndexOption.NASDAQ_100]
+    screener = Screener(filter_options=options, view_option=Screener.ViewOption.OVERVIEW,
+                        pages=[x for x in range(1, 7)])
+    df = pd.concat(screener.data_frames.values())
+    return df
+
+
+def get_djia_tickers_sectors():
+    """Get tickers and sector data for DJIA components"""
+    options = [Screener.IndexOption.DJIA]
+    screener = Screener(filter_options=options, view_option=Screener.ViewOption.OVERVIEW,
+                        pages=[x for x in range(1, 3)])
+    df = pd.concat(screener.data_frames.values())
+    return df
 
 
 def get_screener(api_token, layout='Overview', symbols=None, sleep_secs=0):
