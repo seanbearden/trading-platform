@@ -161,8 +161,8 @@ def process_account_data(account_data):
 
 @app.callback(
     Output('graph', 'figure'),
-    Input('dropdown', 'value'),
-    State("account-data", "data"),
+    [Input('dropdown', 'value'),
+     Input("account-data", "data")],
     prevent_initial_call=False,
 )
 def update_graph(selected_value, account_data):
