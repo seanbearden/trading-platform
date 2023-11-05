@@ -3,6 +3,14 @@ Transform: AWS::Serverless-2016-10-31
 Description: An AWS Serverless Application to generate PDF reports and send via email.
 
 Resources:
+  ReportBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: bearden-data-solutions-report-bucket
+      LifecycleConfiguration:
+        Rules:
+          - Status: Enabled
+            ExpirationInDays: 7  # Set expiration to 30 days
   MyApi:
     Type: AWS::Serverless::Api
     Properties:
@@ -70,6 +78,59 @@ Resources:
       DockerContext: .
       DockerTag: v1
 
+  DailyReportFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageConfig:
+        Command: [ "app.lambda_handler" ]
+      MemorySize: 256  # Specify memory size here
+      Timeout: 300
+      Events:
+        DailyTrigger:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 16 ? * MON-FRI *)
+      Environment:
+        Variables:
+          ALPHAVANTAGE_API_KEY: !Sub '{{resolve:ssm:/ALPHAVANTAGE_API_KEY}}'
+          FINVIZ_API_KEY: !Sub '{{resolve:ssm:/FINVIZ_API_KEY}}'
+          BUCKET_NAME: !Ref ReportBucket
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ses:SendEmail
+                - ses:SendRawEmail
+              Resource: "*"
+        - Statement: # New policy statement to allow ssm:GetParameter action
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+              Resource:
+                - arn:aws:ssm:us-east-1:047672427450:parameter/TDA_API_KEY
+                - arn:aws:ssm:us-east-1:047672427450:parameter/TDA_ACCOUNT_ID
+                - arn:aws:ssm:us-east-1:047672427450:parameter/FROM_EMAIL
+                - arn:aws:ssm:us-east-1:047672427450:parameter/TO_EMAILS
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+                - secretsmanager:PutSecretValue
+              Resource: arn:aws:secretsmanager:us-east-1:047672427450:secret:AMERITRADE_TOKEN_JSON-*
+        - Statement: # New policy statement to allow s3:PutObject action
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:GetObject
+              Resource:
+                - !Sub "arn:aws:s3:::${ReportBucket}/*"
+
+    Metadata:
+      Dockerfile: Dockerfile.daily_report
+      DockerContext: .
+      DockerTag: v1
+
   UsagePlanKey:
     Type: "AWS::ApiGateway::UsagePlanKey"
     Properties:
@@ -83,3 +144,6 @@ Outputs:
   ApiURL:
     Description: "API endpoint URL for Prod stage"
     Value: !Sub "https://${MyApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/report"
+  ReportBucketName:
+    Description: "Name of the bucket to store reports"
+    Value: !Ref ReportBucket

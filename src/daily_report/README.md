@@ -1,5 +1,7 @@
 # Generate a Daily Report
-Using AWS SAM with Lambda
+Using AWS SAM with Lambda.
+
+Must use Python 3.8 for tda-api. 
 
 ## Outline
 1. Store TDA_API_KEY and TDA_ACCOUNT_ID in parameter store.
