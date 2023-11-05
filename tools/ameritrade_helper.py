@@ -1,25 +1,29 @@
-from tda import auth, client, orders
-from selenium import webdriver
+import boto3
+import json
 import logging
-import requests
 import os
+import requests
+# from selenium import webdriver
+from tda import auth, client, orders
+import tempfile
+from tools.requests_helper import json_from_response
+from tools.aws_helper import get_secret
 
-if os.getenv('AWS_EXECUTION_ENV'):
-    from tools import json_from_response
-else:
-    from tools import json_from_response
 
 def tda_auth(api_key,
-             chrome_driver_path,
+             chrome_driver_path=None,
              token_path='./res/token.json',
              redirect_uri='https://localhost:8895'
              ):
     try:
         c = auth.client_from_token_file(token_path, api_key)
     except FileNotFoundError:
-        with webdriver.Chrome(executable_path=chrome_driver_path) as driver:
-            c = auth.client_from_login_flow(
-                driver, api_key, redirect_uri, token_path)
+        # if chrome_driver_path:
+        #     with webdriver.Chrome(executable_path=chrome_driver_path) as driver:
+        #         c = auth.client_from_login_flow(
+        #             driver, api_key, redirect_uri, token_path)
+        # else:
+        raise Exception('TD Ameritrade credentials cannot be found. Try using Chromedriver to generate them.')
     return c
 
 
@@ -28,6 +32,16 @@ def get_quote(symbol, tda_auth_func=tda_auth, **kwargs):
     response = client_.get_quote(symbol)
     data = json_from_response(response)
     return data
+
+
+def get_quotes(symbols, tda_auth_func=tda_auth, **kwargs):
+    tda_client = tda_auth_func(**kwargs)
+    return get_quotes_with_client(tda_client, symbols)
+
+
+def get_quotes_with_client(tda_client, symbols):
+    resp = tda_client.get_quotes(symbols)
+    return resp.json()
 
 
 def get_accounts(tda_auth_func=tda_auth, **kwargs):
@@ -65,12 +79,6 @@ def verify_entry(symbol, tda_api_key):
     # If we reach this point, everything has gone well
     return True
 
-
-def get_quotes(symbols, tda_auth_func=tda_auth, **kwargs):
-    client_ = tda_auth_func(**kwargs)
-    resp = client_.get_quotes(symbols)
-
-    return resp.json()
 
 def get_option_chain(symbol, contract_type, tda_api_key, tda_auth_func=tda_auth, **kwargs):
     client_ = tda_auth_func(tda_api_key)
@@ -186,11 +194,13 @@ def analyze_tda(account):
             long_market_value = sum(
                 [investment['marketValue'] for investment in details['positions'] if investment['longQuantity'] > 0])
             current_day_long_pnl = sum(
-                [investment['currentDayProfitLoss'] for investment in details['positions'] if investment['longQuantity'] > 0])
+                [investment['currentDayProfitLoss'] for investment in details['positions'] if
+                 investment['longQuantity'] > 0])
             short_market_value = sum(
                 [investment['marketValue'] for investment in details['positions'] if investment['shortQuantity'] > 0])
             current_day_short_pnl = sum(
-                [investment['currentDayProfitLoss'] for investment in details['positions'] if investment['shortQuantity'] > 0])
+                [investment['currentDayProfitLoss'] for investment in details['positions'] if
+                 investment['shortQuantity'] > 0])
         # elif asset_type == "CASH":
         #     pass
         else:
@@ -202,3 +212,73 @@ def analyze_tda(account):
         investments[asset_type]['short_market_value'] = short_market_value
         investments[asset_type]['current_day_short_pnl'] = current_day_short_pnl
     return investments
+
+
+def get_specified_account_with_aws():
+    secret_name = "AMERITRADE_TOKEN_JSON"
+    token_dict, temp_file_path = load_token(secret_name)
+
+    # get api keys
+    ssm = boto3.client('ssm')
+    parameter = ssm.get_parameter(Name='TDA_API_KEY', WithDecryption=True)
+    tda_api_key = parameter['Parameter']['Value']
+    parameter = ssm.get_parameter(Name='TDA_ACCOUNT_ID', WithDecryption=True)
+    tda_account_id = parameter['Parameter']['Value']
+
+    # Now you have a temporary file holding your token.
+    # Call the function with the path to this temporary file
+    account = get_specified_account(account_id=tda_account_id,
+                                    api_key=tda_api_key,
+                                    chrome_driver_path=None,
+                                    token_path=temp_file_path)
+
+    cleanup_token(temp_file_path, secret_name, token_dict)
+
+    return account
+
+
+def get_quotes_with_aws(symbols):
+    secret_name = "AMERITRADE_TOKEN_JSON"
+    token_dict, temp_file_path = load_token(secret_name)
+
+    # get api keys
+    ssm = boto3.client('ssm')
+    parameter = ssm.get_parameter(Name='TDA_API_KEY', WithDecryption=True)
+    tda_api_key = parameter['Parameter']['Value']
+
+    # Now you have a temporary file holding your token.
+    # Call the function with the path to this temporary file
+    quotes = get_quotes(
+        symbols,
+        api_key=tda_api_key,
+        token_path=temp_file_path)
+
+    cleanup_token(temp_file_path, secret_name, token_dict)
+
+    return quotes
+
+
+def load_token(secret_name, region_name="us-east-1"):
+    secret_str = get_secret(secret_name, region_name=region_name)
+    token_dict = json.loads(secret_str)
+
+    # Create a temporary file to hold the token
+    with tempfile.NamedTemporaryFile(delete=False) as temp:
+        temp_file_path = temp.name
+        temp.write(json.dumps(token_dict).encode())
+    return token_dict, temp_file_path
+
+
+def cleanup_token(temp_file_path, secret_name, token_dict):
+    # If the function updates the token, save it back to AWS Secrets Manager
+    with open(temp_file_path, 'r') as temp:
+        updated_token_dict = json.load(temp)
+        if updated_token_dict != token_dict:
+            boto3_client = boto3.client('secretsmanager')
+            boto3_client.put_secret_value(
+                SecretId=secret_name,
+                SecretString=json.dumps(updated_token_dict)
+            )
+
+    # Ensure to delete the temporary file after use
+    os.unlink(temp_file_path)

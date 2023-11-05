@@ -1,9 +1,11 @@
 alpha-vantage==2.3.1
 boto3==1.28.67
 matplotlib~=3.3.2
-mplfinance==0.12.10b0
+seaborn~=0.13.0
 pandas~=1.5.0
 reportlab==4.0.6
 requests==2.31.0
 numpy~=1.23.5
 pyfinviz~=0.18
+tda-api==1.6.0
+scipy==1.10.1

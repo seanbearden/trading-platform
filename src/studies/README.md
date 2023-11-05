@@ -5,3 +5,4 @@
 * trend follow
 * Friday drop, Monday pop
 * channels: downward channel, price at top...vice versa
+* Boxplot of sector volatility 

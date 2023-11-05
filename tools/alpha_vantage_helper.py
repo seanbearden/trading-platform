@@ -19,3 +19,18 @@ def get_daily_adjusted_processed(data):
     data = data.drop(['adjusted close', 'split coefficient'], axis=1)
 
     return data
+
+
+def find_last_crossover(df):
+    last_crossover_date = None
+    trend = None
+    for idx in range(len(df) - 1):
+        current_row = df.iloc[idx]
+        previous_row = df.iloc[idx + 1]
+        # Check for crossover. Identify touch as crossover (MACD_Hist = 0)
+        if current_row['MACD_Hist'] * previous_row['MACD_Hist'] <= 0:
+            last_crossover_date = current_row.name
+            break  # Exit the loop once a crossover is found
+
+    return last_crossover_date
+
