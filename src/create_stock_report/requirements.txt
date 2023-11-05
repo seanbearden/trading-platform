@@ -1,9 +1,9 @@
 alpha-vantage==2.3.1
-boto3==1.28.67
-matplotlib~=3.3.2
+boto3~=1.28.78
+matplotlib~=3.7.3
 mplfinance==0.12.10b0
-pandas~=1.5.0
+pandas~=2.0.3
 reportlab==4.0.6
 requests==2.31.0
-numpy~=1.23.5
+numpy~=1.24.4
 pyfinviz~=0.18
