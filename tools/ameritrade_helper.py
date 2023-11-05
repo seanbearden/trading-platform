@@ -3,11 +3,12 @@ import json
 import logging
 import os
 import requests
-from selenium import webdriver
+# from selenium import webdriver
 from tda import auth, client, orders
 import tempfile
 from tools.requests_helper import json_from_response
 from tools.aws_helper import get_secret
+
 
 def tda_auth(api_key,
              chrome_driver_path=None,
@@ -17,12 +18,12 @@ def tda_auth(api_key,
     try:
         c = auth.client_from_token_file(token_path, api_key)
     except FileNotFoundError:
-        if chrome_driver_path:
-            with webdriver.Chrome(executable_path=chrome_driver_path) as driver:
-                c = auth.client_from_login_flow(
-                    driver, api_key, redirect_uri, token_path)
-        else:
-            raise Exception('TD Ameritrade credentials cannot be found. Try using Chromedriver to generate them.')
+        # if chrome_driver_path:
+        #     with webdriver.Chrome(executable_path=chrome_driver_path) as driver:
+        #         c = auth.client_from_login_flow(
+        #             driver, api_key, redirect_uri, token_path)
+        # else:
+        raise Exception('TD Ameritrade credentials cannot be found. Try using Chromedriver to generate them.')
     return c
 
 
@@ -193,11 +194,13 @@ def analyze_tda(account):
             long_market_value = sum(
                 [investment['marketValue'] for investment in details['positions'] if investment['longQuantity'] > 0])
             current_day_long_pnl = sum(
-                [investment['currentDayProfitLoss'] for investment in details['positions'] if investment['longQuantity'] > 0])
+                [investment['currentDayProfitLoss'] for investment in details['positions'] if
+                 investment['longQuantity'] > 0])
             short_market_value = sum(
                 [investment['marketValue'] for investment in details['positions'] if investment['shortQuantity'] > 0])
             current_day_short_pnl = sum(
-                [investment['currentDayProfitLoss'] for investment in details['positions'] if investment['shortQuantity'] > 0])
+                [investment['currentDayProfitLoss'] for investment in details['positions'] if
+                 investment['shortQuantity'] > 0])
         # elif asset_type == "CASH":
         #     pass
         else:

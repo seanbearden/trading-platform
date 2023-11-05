@@ -2,11 +2,13 @@
 FROM public.ecr.aws/lambda/python:3.8
 
 RUN mkdir ./tools
+RUN mkdir ./image
 
 # Copy function code and dependencies
-COPY src/create_stock_report/app.py ./
-COPY src/create_stock_report/requirements.txt ./
+COPY src/daily_report/app.py ./
+COPY src/daily_report/requirements.txt ./
 COPY tools/ ./tools
+COPY src/daily_report/image/ ./image
 
 # Install dependencies
 RUN pip install -r requirements.txt
