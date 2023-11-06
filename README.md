@@ -5,10 +5,11 @@ This Python project is meant to assist my option-trading endeavors using TD Amer
 
 
 ## Requirements
-* chromedriver in path: https://chromedriver.chromium.org. Confirm that version matches Google Chrome version.
-* TD Ameritrade API key: https://developer.tdameritrade.com
-* Alphavantage API key: https://www.alphavantage.co/support/#api-key
-* OpenAI API key: https://platform.openai.com/account/api-keys
+- Python 3.8 (due to limitations of TDA package and AWS Lambda)
+- chromedriver in path: https://chromedriver.chromium.org. Confirm that version matches Google Chrome version.
+- TD Ameritrade API key: https://developer.tdameritrade.com
+- Alphavantage API key: https://www.alphavantage.co/support/#api-key
+- OpenAI API key: https://platform.openai.com/account/api-keys
 
 ## Set Up
 1. Save Alphavantage API key to .env as `ALPHAVANTAGE_API_KEY` for local usage. Save the key to AWS System 
@@ -34,28 +35,23 @@ This Python project is meant to assist my option-trading endeavors using TD Amer
     ```
    
 
-## Task 1
-### Pull portfolio details from Ameritrade
-* Connect to Ameritrade API
-* Present investments on dashboard with filtering options.
-
 ## Task 2
 ### Create log of intent with purchases, specifically exit signals.
 
 ## Task 3
 ### Create ability to manually enter order and trigger text alerts.
-* Vital to this project is an alert system. AWS products will be utilized in building the alert system. I need an 
+- Vital to this project is an alert system. AWS products will be utilized in building the alert system. I need an 
 MySQL RDS, and a lambda function that runs on a schedule.
-* Need basic interface on a Dash/Flask app. Need symbol, option contract date and strike, order price and quantity.
-* Send texts via Twilio to interested parties.
-* All entries should be logged in an RDS.
-* Verification of entries using Ameritrade
-* Confirmation or error presented to user
+- Need basic interface on a Dash/Flask app. Need symbol, option contract date and strike, order price and quantity.
+- Send texts via Twilio to interested parties.
+- All entries should be logged in an RDS.
+- Verification of entries using Ameritrade
+- Confirmation or error presented to user
 
 ## Task 4
 ### Notes
-* Need to make notes for trades
-* 
+- Need to make notes for trades
+- 
 
 ## Task 5
 ### reporting
@@ -63,12 +59,12 @@ MySQL RDS, and a lambda function that runs on a schedule.
 
 
 ## TODO:
-* display open orders
-* display positions without orders
-* pull live alpha vantage data
-* Display index data
-* Twilio interaction
-* chatgpt monitoring and text interaction
+- display open orders
+- display positions without orders
+- pull live alpha vantage data
+- Display index data
+- Twilio interaction
+- chatgpt monitoring and text interaction
 
 ## Chromedriver 
 Need to downgrade Chrome and prevent from updating following these instructions: https://support.google.com/chrome/a/answer/7591084?hl=en#zippy=%2Cturn-off-updates%2Ccreate-a-new-property-list-file
