@@ -10,7 +10,7 @@ Resources:
       LifecycleConfiguration:
         Rules:
           - Status: Enabled
-            ExpirationInDays: 7  # Set expiration to 30 days
+            ExpirationInDays: 7
   MyApi:
     Type: AWS::Serverless::Api
     Properties:
@@ -90,11 +90,15 @@ Resources:
         DailyTrigger:
           Type: Schedule
           Properties:
-            Schedule: cron(0 16 ? * MON-FRI *)
+            Schedule: cron(0 15 ? * MON-FRI *)
       Environment:
         Variables:
           ALPHAVANTAGE_API_KEY: !Sub '{{resolve:ssm:/ALPHAVANTAGE_API_KEY}}'
           FINVIZ_API_KEY: !Sub '{{resolve:ssm:/FINVIZ_API_KEY}}'
+          IAM_ACCESS_KEY_ID: !Sub '{{resolve:ssm:/IAM_ACCESS_KEY_ID}}'
+          IAM_SECRET_ACCESS_KEY: !Sub '{{resolve:ssm:/IAM_SECRET_ACCESS_KEY}}'
+          TDA_API_KEY: !Sub '{{resolve:ssm:/TDA_API_KEY}}'
+          TDA_ACCOUNT_ID: !Sub '{{resolve:ssm:/TDA_ACCOUNT_ID}}'
           BUCKET_NAME: !Ref ReportBucket
       Policies:
         - Statement:
@@ -108,8 +112,6 @@ Resources:
               Action:
                 - ssm:GetParameter
               Resource:
-                - arn:aws:ssm:us-east-1:047672427450:parameter/TDA_API_KEY
-                - arn:aws:ssm:us-east-1:047672427450:parameter/TDA_ACCOUNT_ID
                 - arn:aws:ssm:us-east-1:047672427450:parameter/FROM_EMAIL
                 - arn:aws:ssm:us-east-1:047672427450:parameter/TO_EMAILS
         - Statement:
