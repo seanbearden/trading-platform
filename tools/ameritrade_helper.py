@@ -219,12 +219,8 @@ def get_specified_account_with_aws():
     token_dict, temp_file_path = load_token(secret_name)
 
     # get api keys
-    ssm = boto3.client('ssm')
-    parameter = ssm.get_parameter(Name='TDA_API_KEY', WithDecryption=True)
-    tda_api_key = parameter['Parameter']['Value']
-    parameter = ssm.get_parameter(Name='TDA_ACCOUNT_ID', WithDecryption=True)
-    tda_account_id = parameter['Parameter']['Value']
-
+    tda_api_key = os.environ['TDA_API_KEY']
+    tda_account_id = os.environ['TDA_ACCOUNT_ID']
     # Now you have a temporary file holding your token.
     # Call the function with the path to this temporary file
     account = get_specified_account(account_id=tda_account_id,
@@ -242,9 +238,7 @@ def get_quotes_with_aws(symbols):
     token_dict, temp_file_path = load_token(secret_name)
 
     # get api keys
-    ssm = boto3.client('ssm')
-    parameter = ssm.get_parameter(Name='TDA_API_KEY', WithDecryption=True)
-    tda_api_key = parameter['Parameter']['Value']
+    tda_api_key = os.environ['TDA_API_KEY']
 
     # Now you have a temporary file holding your token.
     # Call the function with the path to this temporary file

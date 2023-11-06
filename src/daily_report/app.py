@@ -3,6 +3,7 @@ import pandas as pd
 from alpha_vantage.techindicators import TechIndicators
 # from alpha_vantage.timeseries import TimeSeries
 import boto3
+from botocore.client import Config
 from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
@@ -34,6 +35,7 @@ from tools import analyze_tda, find_last_crossover, get_screener, delete_files, 
 if 'AWS_EXECUTION_ENV' not in os.environ:
     # Not running on AWS Lambda, load environment variables from .env file
     from dotenv import load_dotenv
+
     load_dotenv()
 
 
@@ -46,15 +48,12 @@ def lambda_handler(event, context):
     tmp_files = []
     # Create PDF
     date_now = pd.Timestamp.now(tz='US/Eastern')
-    pdf_path = f"/tmp/report_{date_now.strftime('%Y%m%d')}.pdf"
+    pdf_key = f"report_{date_now.strftime('%Y%m%d')}.pdf"
+    pdf_path = f"/tmp/{pdf_key}"
     tmp_files.append(pdf_path)
 
     # # get api keys
     ssm = boto3.client('ssm')
-    # parameter = ssm.get_parameter(Name='ALPHAVANTAGE_API_KEY', WithDecryption=True)
-    # alphavantage_api_key = parameter['Parameter']['Value']
-    # parameter = ssm.get_parameter(Name='FINVIZ_API_KEY', WithDecryption=True)
-    # finviz_api_key = parameter['Parameter']['Value']
     alphavantage_api_key = os.environ['ALPHAVANTAGE_API_KEY']
     finviz_api_key = os.environ['FINVIZ_API_KEY']
 
@@ -67,7 +66,7 @@ def lambda_handler(event, context):
     #                      "RSI Signal Date"]
     option_table_dict = {}
 
-    for contract in account_analysis['OPTION']['positions']:
+    for idx, contract in enumerate(account_analysis['OPTION']['positions']):
         instrument = contract['instrument']
         put_call = instrument['putCall']
         underlying_symbol = instrument['underlyingSymbol']
@@ -115,7 +114,7 @@ def lambda_handler(event, context):
             else:
                 most_recent_signal = 'overbought'
             macd_hist = macd_data.iloc[0]['MACD_Hist']
-            threshold_index_str =threshold_index.strftime('%m-%d-%Y')
+            threshold_index_str = threshold_index.strftime('%m-%d-%Y')
 
         option_table_dict[instrument['symbol']] = {
             "Symbol": underlying_symbol,
@@ -127,10 +126,9 @@ def lambda_handler(event, context):
             "RSI Signal": most_recent_signal,
             "RSI Date": threshold_index_str
         }
-
-        # break
+        if idx > 2:
+            break
         # time.sleep(0.25)
-
 
     # Create a BaseDocTemplate
     doc = BaseDocTemplate(pdf_path, pagesize=letter)
@@ -167,14 +165,14 @@ def lambda_handler(event, context):
 
     # Apply a basic table style
     style_commands = [('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                        ('FONTSIZE', (0, 0), (-1, 0), 12),
-                        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                        # ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                        ]
+                      ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                      ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                      ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                      ('FONTSIZE', (0, 0), (-1, 0), 12),
+                      ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                      # ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                      ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                      ]
 
     # Iterate through the rows of the table, checking the RSI value in each row
     for i, row in option_table_df.reset_index().iterrows():
@@ -183,14 +181,14 @@ def lambda_handler(event, context):
             bg_color = colors.lightgreen  # Green background
         else:
             bg_color = colors.indianred  # Red background for RSI <= 30 or RSI >=70
-        style_commands.append(('BACKGROUND', (5, i+1), (5, i+1), bg_color))
+        style_commands.append(('BACKGROUND', (5, i + 1), (5, i + 1), bg_color))
 
         macd_crossover_date = row['Crossover']
         if (date_now.tz_localize(tz=None) - macd_crossover_date).days < crossover_days_threshold:
             bg_color = colors.indianred  # Recent MACD Crossover
         else:
             bg_color = colors.grey
-        style_commands.append(('BACKGROUND', (4, i+1), (4, i+1), bg_color))
+        style_commands.append(('BACKGROUND', (4, i + 1), (4, i + 1), bg_color))
 
     table_style = TableStyle(style_commands)
     option_table_df['Crossover'] = option_table_df['Crossover'].dt.strftime('%m-%d-%Y')
@@ -217,7 +215,7 @@ def lambda_handler(event, context):
     box_plot_sectors = '/tmp/box_plot.png'
     plt.savefig(box_plot_sectors)
     tmp_files.append(box_plot_sectors)
-    box_plot = Image(box_plot_sectors, width=50*10, height=50*6)
+    box_plot = Image(box_plot_sectors, width=50 * 10, height=50 * 6)
 
     # Build the document
     # doc.build([title, sub_title, author, logo, PageBreak(), table, PageBreak(), scatter_plot], onPage=footer)
@@ -225,15 +223,18 @@ def lambda_handler(event, context):
 
     # Upload the PDF to S3
     bucket_name = os.environ['BUCKET_NAME']
-    s3 = boto3.client('s3')
-    s3.upload_file(pdf_path, bucket_name, pdf_path)
+    s3 = boto3.client('s3',
+                      aws_access_key_id=os.environ['IAM_ACCESS_KEY_ID'],
+                      aws_secret_access_key=os.environ['IAM_SECRET_ACCESS_KEY'],
+                      config=Config(signature_version='s3v4'))
+    s3.upload_file(pdf_path, bucket_name, pdf_key)
 
     # Generate a presigned URL for the PDF
     hours = 24
     url = s3.generate_presigned_url(
         ClientMethod='get_object',
-        Params={'Bucket': bucket_name, 'Key': pdf_path},
-        ExpiresIn=60*60*hours  # URL will be valid for 1 hour
+        Params={'Bucket': bucket_name, 'Key': pdf_key},
+        ExpiresIn=60 * 60 * hours  # URL will be valid for hours specified
     )
     parameter = ssm.get_parameter(Name='FROM_EMAIL', WithDecryption=True)
     from_email = parameter['Parameter']['Value']
@@ -293,5 +294,5 @@ def header_footer(canvas, doc):
 
 
 if __name__ == '__main__':
-    response = lambda_handler({},{})
+    response = lambda_handler({}, {})
     response
