@@ -10,18 +10,11 @@ from langchain.agents import initialize_agent, AgentType
 from langchain.chat_models import ChatOpenAI
 from langchain.utilities import GoogleSerperAPIWrapper
 from langchain.tools import Tool as LangChainTool
-
-from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain.tools.render import format_tool_to_openai_function
-from langchain.agents.format_scratchpad import format_to_openai_functions
-from langchain.agents.output_parsers import OpenAIFunctionsAgentOutputParser
 from langchain.agents.agent_toolkits import PlayWrightBrowserToolkit
-from langchain.tools.playwright.utils import (
-    create_sync_playwright_browser,  # A synchronous browser is available, though it isn't compatible with jupyter.
-)
+from langchain.tools.playwright.utils import create_sync_playwright_browser
 
-# Main executable code
-def daily_synopsis(temperature=0, model="gpt-4-1106-preview"):
+
+def daily_synopsis(temperature=0, model="gpt-4-1106-preview", verbose=True):
     # Instantiations and function calls
     llm = ChatOpenAI(temperature=temperature, model=model)
 
@@ -41,7 +34,7 @@ def daily_synopsis(temperature=0, model="gpt-4-1106-preview"):
 
 
     agent_chain = initialize_agent(
-        tools, llm, agent=AgentType.OPENAI_MULTI_FUNCTIONS, verbose=True, handle_parsing_errors=True
+        tools, llm, agent=AgentType.OPENAI_MULTI_FUNCTIONS, verbose=verbose, handle_parsing_errors=True
     )
 
 
@@ -53,7 +46,7 @@ def daily_synopsis(temperature=0, model="gpt-4-1106-preview"):
     important data presented. Search for numerical details when they are not found. Research the current sentiment 
     of investors and present a synopsis.""")
 
-    print(result)
+    return result
 
 
 if __name__ == "__main__":
