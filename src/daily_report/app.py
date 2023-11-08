@@ -285,7 +285,7 @@ def lambda_handler(event, context):
         time.sleep(1)
 
     delete_files(tmp_files)
-    return {'statusCode': 200, 'body': 'Report created successfully, but not sent!'}
+    return {'statusCode': 200, 'body': 'Report created successfully and sent!'}
 
 
 # Function to draw the header and footer on each page

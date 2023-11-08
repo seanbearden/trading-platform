@@ -10,17 +10,26 @@ from langchain.agents import initialize_agent, AgentType
 from langchain.chat_models import ChatOpenAI
 from langchain.utilities import GoogleSerperAPIWrapper
 from langchain.tools import Tool as LangChainTool
-from langchain.agents.agent_toolkits import PlayWrightBrowserToolkit
-from langchain.tools.playwright.utils import create_sync_playwright_browser
-
+# from langchain.agents.agent_toolkits import PlayWrightBrowserToolkit
+# from langchain.tools.playwright.utils import create_sync_playwright_browser
+from langchain.tools.yahoo_finance_news import YahooFinanceNewsTool
+from langchain.utilities.tavily_search import TavilySearchAPIWrapper
+from langchain.tools.tavily_search import TavilySearchResults
 
 def daily_synopsis(temperature=0, model="gpt-4-1106-preview", verbose=True):
     # Instantiations and function calls
     llm = ChatOpenAI(temperature=temperature, model=model)
 
-    sync_browser = create_sync_playwright_browser()
-    toolkit = PlayWrightBrowserToolkit.from_browser(sync_browser=sync_browser)
-    tools = toolkit.get_tools()
+
+    search = TavilySearchAPIWrapper()
+    tavily_tool = TavilySearchResults(api_wrapper=search)
+    tools = [YahooFinanceNewsTool(),
+             # tavily_tool
+             ]
+    # works better with playwright, but causes errors when deploying to AWS
+    # sync_browser = create_sync_playwright_browser()
+    # toolkit = PlayWrightBrowserToolkit.from_browser(sync_browser=sync_browser)
+    # tools = toolkit.get_tools()
 
     search = GoogleSerperAPIWrapper()
 
