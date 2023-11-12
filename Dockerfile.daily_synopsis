@@ -1,0 +1,46 @@
+ARG FUNCTION_DIR="/function"
+
+# Use playwright image (python 3.8)
+FROM --platform=linux/x86_64 mcr.microsoft.com/playwright/python:v1.39.0-focal  as build-image
+
+# Install aws-lambda-cpp build dependencies
+RUN apt-get update && \
+    apt-get install -y \
+    g++ \
+    make \
+    cmake \
+    unzip \
+    libcurl4-openssl-dev
+
+# Include global arg in this stage of the build
+ARG FUNCTION_DIR
+# Create function directory
+RUN mkdir -p ${FUNCTION_DIR}/tools
+
+# Copy function code
+COPY src/daily_synopsis/* ${FUNCTION_DIR}/
+COPY tools/__init__.py ${FUNCTION_DIR}/tools
+COPY tools/langchain_helper.py ${FUNCTION_DIR}/tools
+
+# Install dependencies
+RUN pip3 install --target ${FUNCTION_DIR} -r ${FUNCTION_DIR}/requirements.txt
+
+# Install the runtime interface client
+RUN pip3 install  \
+    --target ${FUNCTION_DIR} \
+    awslambdaric
+
+# Multi-stage build: grab a fresh copy of the base image
+FROM --platform=linux/x86_64 mcr.microsoft.com/playwright/python:v1.21.0-focal
+
+# Include global arg in this stage of the build
+ARG FUNCTION_DIR
+# Set working directory to function root directory
+WORKDIR ${FUNCTION_DIR}
+
+# Copy in the build image dependencies
+COPY --from=build-image ${FUNCTION_DIR} ${FUNCTION_DIR}
+
+# Set the CMD to your handler
+ENTRYPOINT [ "/usr/bin/python", "-m", "awslambdaric" ]
+CMD ["app.lambda_handler"]

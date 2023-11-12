@@ -2,6 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: An AWS Serverless Application to generate PDF reports and send via email.
 
+
 Resources:
   ReportBucket:
     Type: AWS::S3::Bucket
@@ -45,7 +46,7 @@ Resources:
 #        - RestApiId:
 #            Ref: "MyApi"
 #          StageName: "Prod"
-#
+
 #  GenerateReportFunction:
 #    Type: AWS::Serverless::Function
 #    Properties:
@@ -78,14 +79,33 @@ Resources:
 #      DockerContext: .
 #      DockerTag: v1
 
+  DailySynopsisFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageConfig:
+        Command: [ "app.lambda_handler" ]
+      Architectures: [x86_64]
+      MemorySize: 1024  # Specify memory size here
+      Timeout: 600
+      Environment:
+        Variables:
+          OPENAI_API_KEY: !Sub '{{resolve:ssm:/OPENAI_API_KEY}}'
+          SERPER_API_KEY: !Sub '{{resolve:ssm:/SERPER_API_KEY}}'
+    Metadata:
+      Dockerfile: Dockerfile.daily_synopsis
+      DockerContext: .
+      DockerTag: v1
+
   DailyReportFunction:
     Type: AWS::Serverless::Function
     Properties:
       PackageType: Image
       ImageConfig:
         Command: [ "app.lambda_handler" ]
+      Architectures: [x86_64]
       MemorySize: 256  # Specify memory size here
-      Timeout: 300
+      Timeout: 900
       Events:
         DailyTrigger:
           Type: Schedule
@@ -104,6 +124,10 @@ Resources:
           GOOGLE_CSE_ID: !Sub '{{resolve:ssm:/GOOGLE_CSE_ID}}'
           SERPER_API_KEY: !Sub '{{resolve:ssm:/SERPER_API_KEY}}'
           BUCKET_NAME: !Ref ReportBucket
+          DAILY_SYNOPSIS_FUNCTION_NAME: !GetAtt DailySynopsisFunction.Arn
+          MPLCONFIGDIR: "/tmp"
+#      Role: !GetAtt DailyReportFunctionRole.Arn
+
       Policies:
         - Statement:
             - Effect: Allow
@@ -131,11 +155,36 @@ Resources:
                 - s3:GetObject
               Resource:
                 - !Sub "arn:aws:s3:::${ReportBucket}/*"
+        - Statement:
+          - Effect: Allow
+            Action:
+              - lambda:InvokeFunction
+            Resource: !GetAtt DailySynopsisFunction.Arn
 
     Metadata:
       Dockerfile: Dockerfile.daily_report
       DockerContext: .
       DockerTag: v1
+
+#  DailyReportFunctionRole:
+#    Type: AWS::IAM::Role
+#    Properties:
+#      AssumeRolePolicyDocument:
+#        Version: '2012-10-17'
+#        Statement:
+#          - Effect: Allow
+#            Principal:
+#              Service: [lambda.amazonaws.com]
+#            Action: ['sts:AssumeRole']
+#      Policies:
+#        - PolicyName: DailyReportFunctionPolicy
+#          PolicyDocument:
+#            Version: '2012-10-17'
+#            Statement:
+#              - Effect: Allow
+#                Action:
+#                  - lambda:InvokeFunction
+#                Resource: !GetAtt DailySynopsisFunction.Arn
 
 #  UsagePlanKey:
 #    Type: "AWS::ApiGateway::UsagePlanKey"
