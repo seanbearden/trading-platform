@@ -33,7 +33,7 @@ This Python project is meant to assist my option-trading endeavors using TD Amer
         "symbol": "MSFT"
     }
     ```
-   
+6. Need to run `playwright install` in dockerfile
 
 ## Task 2
 ### Create log of intent with purchases, specifically exit signals.

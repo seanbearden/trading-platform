@@ -5,18 +5,18 @@ def get_daily_adjusted_processed(data):
         '2. high': 'high',
         '3. low': 'low',
         '4. close': 'close',
-        '5. adjusted close': 'adjusted close',
+        '5. adjusted close': 'adjusted_close',
         '6. volume': 'volume',
-        '7. dividend amount': 'dividend amount',
-        '8. split coefficient': 'split coefficient'
-        })
-    adjust_ratio = (data['adjusted close'] / data['close'])
+        '7. dividend amount': 'dividend_amount',
+        '8. split coefficient': 'split_coefficient'
+    })
+    adjust_ratio = (data['adjusted_close'] / data['close'])
 
     data['open'] = data['open'] * adjust_ratio
     data['high'] = data['high'] * adjust_ratio
     data['low'] = data['low'] * adjust_ratio
-    data['close'] = data['adjusted close']
-    data = data.drop(['adjusted close', 'split coefficient'], axis=1)
+    data['close'] = data['adjusted_close']
+    data = data.drop(['adjusted_close', 'split_coefficient'], axis=1)
 
     return data
 
@@ -33,4 +33,3 @@ def find_last_crossover(df):
             break  # Exit the loop once a crossover is found
 
     return last_crossover_date
-

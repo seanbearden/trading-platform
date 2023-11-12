@@ -4,16 +4,18 @@ from alpha_vantage.techindicators import TechIndicators
 # from alpha_vantage.timeseries import TimeSeries
 import boto3
 from botocore.client import Config
-from email import encoders
-from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from io import StringIO
 import json
 import matplotlib.pyplot as plt
 import os
+import seaborn as sns
+import time
+
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.platypus import (
     BaseDocTemplate,
@@ -26,25 +28,47 @@ from reportlab.platypus import (
     Spacer,
     Image
 )
-from reportlab.lib.styles import getSampleStyleSheet
-import seaborn as sns
-import time
-from tools import analyze_tda, find_last_crossover, get_screener, delete_files, get_specified_account_with_aws
 
-# Check if running on AWS Lambda
-if 'AWS_EXECUTION_ENV' not in os.environ:
-    # Not running on AWS Lambda, load environment variables from .env file
-    from dotenv import load_dotenv
 
-    load_dotenv()
+from tools.alpha_vantage_helper import find_last_crossover
+from tools.ameritrade_helper import analyze_tda, get_specified_account_with_aws
+from tools.finviz_helper import get_screener
+from tools.os_helper import delete_files
+
+# # Check if running on AWS Lambda
+# if 'AWS_EXECUTION_ENV' not in os.environ:
+#     # Not running on AWS Lambda, load environment variables from .env file
+#     from dotenv import load_dotenv
+#
+#     load_dotenv()
 
 
 def lambda_handler(event, context):
-    # Parse input
-    # body = event.get('body', '{}')
-    # if isinstance(body, str):
-    #     body = json.loads(body)
+    lambda_client = boto3.client('lambda')
+    synopsis_attempts = 3
+    daily_synopsis_function_arn = os.environ['DAILY_SYNOPSIS_FUNCTION_NAME']
 
+    for attempt in range(synopsis_attempts):
+        # Invoke DailySynopsisFunction
+        lambda_response = lambda_client.invoke(
+            FunctionName=daily_synopsis_function_arn,
+            InvocationType='RequestResponse',
+            Payload=json.dumps(event)
+        )
+
+        lambda_payload = json.loads(lambda_response['Payload'].read())
+        lambda_payload_body = json.loads(lambda_payload.get('body', '{}'))
+        if lambda_payload.get('statusCode') == 200:
+            gpt_daily_synopsis = lambda_payload_body['results']
+            break
+        elif lambda_payload.get('statusCode') == 500:
+            error = lambda_payload_body['error']
+            gpt_daily_synopsis = f'There was an error generating the report: {error}'
+        else:
+            gpt_daily_synopsis = 'There is an unknown error occuring in DailySynopsisFunction'
+
+    # gpt_daily_synopsis = daily_synopsis(temperature=1, model="gpt-4-1106-preview", verbose=True)
+    # files to be removed from /tmp at end of execution
     tmp_files = []
     # Create PDF
     date_now = pd.Timestamp.now(tz='US/Eastern')
@@ -52,18 +76,13 @@ def lambda_handler(event, context):
     pdf_path = f"/tmp/{pdf_key}"
     tmp_files.append(pdf_path)
 
-    # # get api keys
-    ssm = boto3.client('ssm')
+    # get api keys
     alphavantage_api_key = os.environ['ALPHAVANTAGE_API_KEY']
     finviz_api_key = os.environ['FINVIZ_API_KEY']
 
     account = get_specified_account_with_aws()
-    # with open('../../res/samples/account.json', 'r') as file:
-    #     account = json.load(file)
-
     account_analysis = analyze_tda(account)
-    # option_table_cols = ["Symbol", "Type", "MACD Hist", "Crossover", "RSI", "Last RSI Signal",
-    #                      "RSI Signal Date"]
+
     option_table_dict = {}
 
     for idx, contract in enumerate(account_analysis['OPTION']['positions']):
@@ -126,8 +145,8 @@ def lambda_handler(event, context):
             "RSI Signal": most_recent_signal,
             "RSI Date": threshold_index_str
         }
-        if idx > 2:
-            break
+        # if idx > 2:
+        #     break
         # time.sleep(0.25)
 
     # Create a BaseDocTemplate
@@ -143,6 +162,14 @@ def lambda_handler(event, context):
 
     # Title page content
     styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name='Spacing', parent=styles['BodyText'], spaceAfter=12))
+
+    # Add custom styles for headers if they don't exist
+    for i in range(1, 7):
+        header_style = f"Heading{i}"
+        if header_style not in styles:
+            styles.add(ParagraphStyle(name=header_style, parent=styles['Heading1'], fontName='Helvetica-Bold',
+                                      fontSize=14 - i * 1.2, spaceAfter=6, spaceBefore=12))
 
     # Modify the existing styles to be center-aligned
     styles['Title'].alignment = 1  # 1 is the code for center alignment
@@ -153,7 +180,10 @@ def lambda_handler(event, context):
     title = Paragraph("Daily Trading Report", styles['Title'])
     sub_title = Paragraph(date_now.strftime('%m-%d-%Y'), styles['Heading2'])
     author = Paragraph("Author: Sean R.B. Bearden", styles['Heading3'])
+    warning = Paragraph("WARNING: ChatGPT generated content may be inaccurate.", styles['Heading4'])
     logo = Image("image/logo.png", width=100, height=100)
+    # Convert Markdown to styled XML
+    p_list = parse_markdown_to_paragraphs(gpt_daily_synopsis, styles)
 
     option_table_df = pd.DataFrame.from_dict(option_table_dict, orient='index')
     screener = get_screener(finviz_api_key,
@@ -217,9 +247,11 @@ def lambda_handler(event, context):
     tmp_files.append(box_plot_sectors)
     box_plot = Image(box_plot_sectors, width=50 * 10, height=50 * 6)
 
+
     # Build the document
-    # doc.build([title, sub_title, author, logo, PageBreak(), table, PageBreak(), scatter_plot], onPage=footer)
-    doc.build([title, sub_title, author, logo, PageBreak(), table, PageBreak(), box_plot])
+    doc.build([title, sub_title, author, warning] + p_list +
+               # logo,
+               [PageBreak(), table, PageBreak(), box_plot])
 
     # Upload the PDF to S3
     bucket_name = os.environ['BUCKET_NAME']
@@ -236,6 +268,8 @@ def lambda_handler(event, context):
         Params={'Bucket': bucket_name, 'Key': pdf_key},
         ExpiresIn=60 * 60 * hours  # URL will be valid for hours specified
     )
+
+    ssm = boto3.client('ssm')
     parameter = ssm.get_parameter(Name='FROM_EMAIL', WithDecryption=True)
     from_email = parameter['Parameter']['Value']
     parameter = ssm.get_parameter(Name='TO_EMAILS', WithDecryption=True)
@@ -260,7 +294,7 @@ def lambda_handler(event, context):
         This link will expire in {hours} hours.
 
         Best regards,
-        Sean Bearden
+        Sean Bearden, Ph.D.
         """
 
         text = MIMEText(email_body, 'plain')
@@ -276,7 +310,7 @@ def lambda_handler(event, context):
         time.sleep(1)
 
     delete_files(tmp_files)
-    return {'statusCode': 200, 'body': 'Report created successfully, but not sent!'}
+    return {'statusCode': 200, 'body': 'Report created successfully and sent!'}
 
 
 # Function to draw the header and footer on each page
@@ -291,6 +325,33 @@ def header_footer(canvas, doc):
         text = "Page %s" % page_num
         canvas.drawString(doc.leftMargin, inch / 2, "Bearden Data Solutions LLC")
         canvas.drawRightString(doc.width + doc.leftMargin, inch / 2, text)
+
+
+# Function to parse Markdown and create Paragraphs
+def parse_markdown_to_paragraphs(md_text, styles):
+    # Split the markdown text into blocks separated by two newlines
+    blocks = md_text.split('\n\n')
+
+    # List to store Paragraph objects
+    paragraphs = []
+
+    # Parse each block
+    for block in blocks:
+        # Check if the block is a header
+        if block.startswith('#'):
+            # Determine the level of the header
+            header_level = len(block) - len(block.lstrip('#'))
+            # Get the header text
+            header_text = block.lstrip('#').strip()
+            # Create a Paragraph with the header style
+            p = Paragraph(header_text, styles[f"Heading{header_level}"])
+        else:
+            # Treat the block as a normal paragraph
+            p = Paragraph(block, styles['Spacing'])
+        # Add the Paragraph to the list
+        paragraphs.append(p)
+
+    return paragraphs
 
 
 if __name__ == '__main__':
