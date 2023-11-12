@@ -4,16 +4,18 @@ from alpha_vantage.techindicators import TechIndicators
 # from alpha_vantage.timeseries import TimeSeries
 import boto3
 from botocore.client import Config
-from email import encoders
-from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from io import StringIO
 import json
 import matplotlib.pyplot as plt
 import os
+import seaborn as sns
+import time
+
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.platypus import (
     BaseDocTemplate,
@@ -26,10 +28,12 @@ from reportlab.platypus import (
     Spacer,
     Image
 )
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-import seaborn as sns
-import time
-from tools import analyze_tda, find_last_crossover, get_screener, delete_files, get_specified_account_with_aws, daily_synopsis
+
+
+from tools.alpha_vantage_helper import find_last_crossover
+from tools.ameritrade_helper import analyze_tda, get_specified_account_with_aws
+from tools.finviz_helper import get_screener
+from tools.os_helper import delete_files
 
 # # Check if running on AWS Lambda
 # if 'AWS_EXECUTION_ENV' not in os.environ:
@@ -40,7 +44,30 @@ from tools import analyze_tda, find_last_crossover, get_screener, delete_files, 
 
 
 def lambda_handler(event, context):
-    gpt_daily_synopsis = daily_synopsis(temperature=0, model="gpt-4-1106-preview", verbose=True)
+    lambda_client = boto3.client('lambda')
+    synopsis_attempts = 3
+    daily_synopsis_function_arn = os.environ['DAILY_SYNOPSIS_FUNCTION_NAME']
+
+    for attempt in range(synopsis_attempts):
+        # Invoke DailySynopsisFunction
+        lambda_response = lambda_client.invoke(
+            FunctionName=daily_synopsis_function_arn,
+            InvocationType='RequestResponse',
+            Payload=json.dumps(event)
+        )
+
+        lambda_payload = json.loads(lambda_response['Payload'].read())
+        lambda_payload_body = json.loads(lambda_payload.get('body', '{}'))
+        if lambda_payload.get('statusCode') == 200:
+            gpt_daily_synopsis = lambda_payload_body['results']
+            break
+        elif lambda_payload.get('statusCode') == 500:
+            error = lambda_payload_body['error']
+            gpt_daily_synopsis = f'There was an error generating the report: {error}'
+        else:
+            gpt_daily_synopsis = 'There is an unknown error occuring in DailySynopsisFunction'
+
+    # gpt_daily_synopsis = daily_synopsis(temperature=1, model="gpt-4-1106-preview", verbose=True)
     # files to be removed from /tmp at end of execution
     tmp_files = []
     # Create PDF
@@ -118,8 +145,8 @@ def lambda_handler(event, context):
             "RSI Signal": most_recent_signal,
             "RSI Date": threshold_index_str
         }
-        if idx > 2:
-            break
+        # if idx > 2:
+        #     break
         # time.sleep(0.25)
 
     # Create a BaseDocTemplate
@@ -157,7 +184,6 @@ def lambda_handler(event, context):
     logo = Image("image/logo.png", width=100, height=100)
     # Convert Markdown to styled XML
     p_list = parse_markdown_to_paragraphs(gpt_daily_synopsis, styles)
-    # synopsis = Paragraph(gpt_daily_synopsis, styles['Spacing'])
 
     option_table_df = pd.DataFrame.from_dict(option_table_dict, orient='index')
     screener = get_screener(finviz_api_key,
@@ -225,7 +251,6 @@ def lambda_handler(event, context):
     # Build the document
     doc.build([title, sub_title, author, warning] + p_list +
                # logo,
-               # synopsis,
                [PageBreak(), table, PageBreak(), box_plot])
 
     # Upload the PDF to S3
