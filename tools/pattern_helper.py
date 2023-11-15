@@ -71,4 +71,3 @@ def identify_multi_bottoms(data, tolerance=0.005, order=1):
         return None, None
 
     return touches, support_value
-
