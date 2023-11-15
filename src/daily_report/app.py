@@ -31,7 +31,7 @@ from reportlab.platypus import (
 
 
 from tools.alpha_vantage_helper import find_last_crossover
-from tools.ameritrade_helper import analyze_tda, get_specified_account_with_aws
+from tools.ameritrade_helper import analyze_tda, get_specified_account_with_aws, get_expiration_date_summary
 from tools.finviz_helper import get_screener
 from tools.os_helper import delete_files
 
@@ -44,28 +44,29 @@ from tools.os_helper import delete_files
 
 
 def lambda_handler(event, context):
-    lambda_client = boto3.client('lambda')
-    synopsis_attempts = 3
-    daily_synopsis_function_arn = os.environ['DAILY_SYNOPSIS_FUNCTION_NAME']
-
-    for attempt in range(synopsis_attempts):
-        # Invoke DailySynopsisFunction
-        lambda_response = lambda_client.invoke(
-            FunctionName=daily_synopsis_function_arn,
-            InvocationType='RequestResponse',
-            Payload=json.dumps(event)
-        )
-
-        lambda_payload = json.loads(lambda_response['Payload'].read())
-        lambda_payload_body = json.loads(lambda_payload.get('body', '{}'))
-        if lambda_payload.get('statusCode') == 200:
-            gpt_daily_synopsis = lambda_payload_body['results']
-            break
-        elif lambda_payload.get('statusCode') == 500:
-            error = lambda_payload_body['error']
-            gpt_daily_synopsis = f'There was an error generating the report: {error}'
-        else:
-            gpt_daily_synopsis = 'There is an unknown error occuring in DailySynopsisFunction'
+    gpt_daily_synopsis = ""
+    # lambda_client = boto3.client('lambda')
+    # synopsis_attempts = 3
+    # daily_synopsis_function_arn = os.environ['DAILY_SYNOPSIS_FUNCTION_NAME']
+    #
+    # for attempt in range(synopsis_attempts):
+    #     # Invoke DailySynopsisFunction
+    #     lambda_response = lambda_client.invoke(
+    #         FunctionName=daily_synopsis_function_arn,
+    #         InvocationType='RequestResponse',
+    #         Payload=json.dumps(event)
+    #     )
+    #
+    #     lambda_payload = json.loads(lambda_response['Payload'].read())
+    #     lambda_payload_body = json.loads(lambda_payload.get('body', '{}'))
+    #     if lambda_payload.get('statusCode') == 200:
+    #         gpt_daily_synopsis = lambda_payload_body['results']
+    #         break
+    #     elif lambda_payload.get('statusCode') == 500:
+    #         error = lambda_payload_body['error']
+    #         gpt_daily_synopsis = f'There was an error generating the report: {error}'
+    #     else:
+    #         gpt_daily_synopsis = 'There is an unknown error occuring in DailySynopsisFunction'
 
     # gpt_daily_synopsis = daily_synopsis(temperature=1, model="gpt-4-1106-preview", verbose=True)
     # files to be removed from /tmp at end of execution
@@ -82,7 +83,8 @@ def lambda_handler(event, context):
 
     account = get_specified_account_with_aws()
     account_analysis = analyze_tda(account)
-
+    option_position_df = pd.json_normalize(account_analysis['OPTION']['positions'], sep='_')
+    expiration_date_summary = get_expiration_date_summary(option_position_df)
     option_table_dict = {}
 
     for idx, contract in enumerate(account_analysis['OPTION']['positions']):
@@ -203,7 +205,7 @@ def lambda_handler(event, context):
                       # ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
                       ('GRID', (0, 0), (-1, -1), 1, colors.black),
                       ]
-
+    signal_style_commands = list(style_commands)
     # Iterate through the rows of the table, checking the RSI value in each row
     for i, row in option_table_df.reset_index().iterrows():
         rsi_value = row['RSI']
@@ -211,21 +213,26 @@ def lambda_handler(event, context):
             bg_color = colors.lightgreen  # Green background
         else:
             bg_color = colors.indianred  # Red background for RSI <= 30 or RSI >=70
-        style_commands.append(('BACKGROUND', (5, i + 1), (5, i + 1), bg_color))
+        signal_style_commands.append(('BACKGROUND', (5, i + 1), (5, i + 1), bg_color))
 
         macd_crossover_date = row['Crossover']
         if (date_now.tz_localize(tz=None) - macd_crossover_date).days < crossover_days_threshold:
             bg_color = colors.indianred  # Recent MACD Crossover
         else:
             bg_color = colors.grey
-        style_commands.append(('BACKGROUND', (4, i + 1), (4, i + 1), bg_color))
+        signal_style_commands.append(('BACKGROUND', (4, i + 1), (4, i + 1), bg_color))
 
-    table_style = TableStyle(style_commands)
+    table_style = TableStyle(signal_style_commands)
     option_table_df['Crossover'] = option_table_df['Crossover'].dt.strftime('%m-%d-%Y')
     option_table_df.sort_values('Symbol', inplace=True)
     option_table = [list(option_table_df.columns)] + option_table_df.values.tolist()
     table = Table(option_table, repeatRows=1)
     table.setStyle(table_style)
+
+    table_style = TableStyle(style_commands)
+    expiration_date_table = [list(expiration_date_summary.columns)] + expiration_date_summary.values.tolist()
+    table_expiration = Table(expiration_date_table, repeatRows=1)
+    table_expiration.setStyle(table_style)
 
     option_table_df = option_table_df.merge(screener_df[['Ticker', 'Sector']], left_on='Symbol',
                                             right_on='Ticker', how='left')
@@ -251,7 +258,7 @@ def lambda_handler(event, context):
     # Build the document
     doc.build([title, sub_title, author, warning] + p_list +
                # logo,
-               [PageBreak(), table, PageBreak(), box_plot])
+               [PageBreak(), table_expiration, PageBreak(), table, PageBreak(), box_plot])
 
     # Upload the PDF to S3
     bucket_name = os.environ['BUCKET_NAME']

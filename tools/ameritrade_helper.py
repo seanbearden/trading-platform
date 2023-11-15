@@ -301,3 +301,25 @@ def get_date_from_contract_details(text: str):
         raise "No date found in the string."
 
     return extracted_date
+
+
+def get_expiration_date_summary(df):
+    df['expiration_date'] = df['instrument_description'].apply(get_date_from_contract_details)
+    # Group by 'expiration_date' and aggregate
+    result = df.groupby('expiration_date').agg({
+        'marketValue': ['sum',
+                        lambda x: df.loc[x.index, 'marketValue'][
+                                      df.loc[x.index, 'instrument_putCall'] == 'CALL'].sum() / x.sum()
+                        ],
+        'instrument_putCall': ['count', lambda x: (x == 'CALL').sum() / len(x)]
+    })
+
+    # Rename the custom aggregation column for clarity
+    result.columns = ['_'.join(col).strip() for col in result.columns.values]
+    result.rename(columns={
+        'marketValue_<lambda_0>': 'call_mark_perc',
+        'instrument_putCall_<lambda_0>': 'call_vol_perc'}, inplace=True)
+    result.reset_index(drop=False, inplace=True)
+    result['expiration_date'] = result['expiration_date'].dt.date
+
+    return result

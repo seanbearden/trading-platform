@@ -5,10 +5,8 @@ from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
 from dotenv import load_dotenv
-import os
-from pandas import json_normalize
 from tools.ameritrade_helper import (get_specified_account_with_aws, analyze_tda, get_quotes_with_aws,
-                                     get_date_from_contract_details)
+                                     get_expiration_date_summary)
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objs as go
@@ -166,30 +164,14 @@ def retrieve_account_data(refresh_btn__click):
     prevent_initial_call=True,
 )
 def process_account_data(selected_value, account_data):
-    df = json_normalize(account_data['OPTION']['positions'], sep='_')
+    df = pd.json_normalize(account_data['OPTION']['positions'], sep='_')
 
     if selected_value == 'ALL_DATA':
         data = df.to_dict('records')
         # TODO: rearrange columns
         columns = [{"name": i, "id": i} for i in df.columns]
     elif selected_value == 'EXPIRATION':
-        df['expiration_date'] = df['instrument_description'].apply(get_date_from_contract_details)
-        # Group by 'expiration_date' and aggregate
-        result = df.groupby('expiration_date').agg({
-            'marketValue': ['sum',
-                            lambda x: df.loc[x.index, 'marketValue'][
-                                          df.loc[x.index, 'instrument_putCall'] == 'CALL'].sum() / x.sum()
-                            ],
-            'instrument_putCall': ['count', lambda x: (x == 'CALL').sum() / len(x)]
-        })
-
-        # Rename the custom aggregation column for clarity
-        result.columns = ['_'.join(col).strip() for col in result.columns.values]
-        result.rename(columns={
-            'marketValue_<lambda_0>': 'call_mark_perc',
-            'instrument_putCall_<lambda_0>': 'call_vol_perc'}, inplace=True)
-        result.reset_index(drop=False, inplace=True)
-        result['expiration_date'] = result['expiration_date'].dt.date
+        result = get_expiration_date_summary(df)
         data = result.to_dict('records')
         columns = [{"name": 'Expiration', "id": 'expiration_date', "type": "datetime"},
                    {"name": 'Total Market Value', "id": 'marketValue_sum', 'format': FormatTemplate.money(2),
