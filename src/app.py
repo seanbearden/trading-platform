@@ -1,12 +1,12 @@
 import dash
 from dash import dcc, html, dash_table
+import dash.dash_table.FormatTemplate as FormatTemplate
 from dash.dependencies import Input, Output, State
+from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
 from dotenv import load_dotenv
-import os
-from pandas import json_normalize
-from tools.ameritrade_helper import get_specified_account_with_aws, analyze_tda, get_quotes_with_aws
-
+from tools.ameritrade_helper import (get_specified_account_with_aws, analyze_tda, get_quotes_with_aws,
+                                     get_expiration_date_summary)
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objs as go
@@ -21,15 +21,15 @@ load_dotenv()
 chrome_driver_path = '../chromedriver'
 token_path = '../res/token.json'
 
-display_style = {"width": "36rem", "color": "#aea7f1"}
+display_style = {'width': '36rem', 'color': '#aea7f1'}
 
 app = dash.Dash(
     __name__,
-    meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1"}],
+    meta_tags=[{'name': 'viewport', 'content': 'width=device-width, initial-scale=1'}],
     external_stylesheets=[dbc.themes.BOOTSTRAP]
 )
 
-app.title = "Ameritrade Investment Dashboard"
+app.title = 'Ameritrade Investment Dashboard'
 
 server = app.server
 
@@ -46,8 +46,8 @@ def create_card(title, id, style):
     """
     return dbc.Card(
         dbc.CardBody([
-            html.H4(title, className="card-title"),
-            html.H2(id=id, className="card-subtitle"),
+            html.H4(title, className='card-title'),
+            html.H2(id=id, className='card-subtitle'),
         ]),
         style=style,
     )
@@ -58,12 +58,12 @@ def description_card():
     :return: A Div containing dashboard title & descriptions.
     """
     return html.Div(
-        id="description-card",
+        id='description-card',
         children=[
             html.H5(app.title),
             html.Div(
-                id="intro",
-                children="A dashboard for evaluating Ameritrade portfolio performance.",
+                id='intro',
+                children='A dashboard for evaluating Ameritrade portfolio performance.',
             ),
         ],
     )
@@ -74,23 +74,23 @@ def generate_control_card():
     :return: A Div containing controls for analysis.
     """
     return html.Div(
-        id="control-card",
+        id='control-card',
         children=[
             dbc.Row([
-                dbc.Col(create_card("Net Liquidation Value", "net-liquidation-value", display_style), width=6),
-                dbc.Col(create_card("Daily Change", "net-liquidation-value-change", display_style), width=6),
+                dbc.Col(create_card('Net Liquidation Value', 'net-liquidation-value', display_style), width=6),
+                dbc.Col(create_card('Daily Change', 'net-liquidation-value-change', display_style), width=6),
             ]),
             dbc.Row([
-                dbc.Col(create_card("Call Market Value", "call-value", display_style), width=6),
-                dbc.Col(create_card("Call PNL", "call-value-change", display_style), width=6),
+                dbc.Col(create_card('Call Market Value', 'call-value', display_style), width=6),
+                dbc.Col(create_card('Call PNL', 'call-value-change', display_style), width=6),
             ]),
             dbc.Row([
-                dbc.Col(create_card("Put Market Value", "put-value", display_style), width=6),
-                dbc.Col(create_card("Put PNL", "put-value-change", display_style), width=6),
+                dbc.Col(create_card('Put Market Value', 'put-value', display_style), width=6),
+                dbc.Col(create_card('Put PNL', 'put-value-change', display_style), width=6),
             ]),
             dbc.Row([
-                dbc.Col(create_card("Equity Value", "equity-value", display_style), width=6),
-                dbc.Col(create_card("Equity PNL", "equity-value-change", display_style), width=6),
+                dbc.Col(create_card('Equity Value', 'equity-value', display_style), width=6),
+                dbc.Col(create_card('Equity PNL', 'equity-value-change', display_style), width=6),
             ]),
             html.Br(),
             dcc.Dropdown(
@@ -99,12 +99,20 @@ def generate_control_card():
                          {'label': 'Bar Plot', 'value': 'BAR'}],
                 value='MAJOR_INDICES'  # Default value
             ),
+            html.Br(),
+            dcc.Dropdown(
+                id='table-dropdown',
+                options=[{'label': 'All Data', 'value': 'ALL_DATA'},
+                         {'label': 'Contract Expiration', 'value': 'EXPIRATION'}],
+                value='EXPIRATION'  # Default value
+            ),
+            html.Br(),
             html.Div(
                 className='padding-top-bot',
                 children=[
                     html.Div(
-                        id="refresh-btn-outer",
-                        children=html.Button(id="refresh-btn", children="Refresh Data"),
+                        id='refresh-btn-outer',
+                        children=html.Button(id='refresh-btn', children='Refresh Data'),
                     )]
             ),
         ]
@@ -113,7 +121,7 @@ def generate_control_card():
 
 @app.callback(
     [
-        Output("account-data", "data"),
+        Output('account-data', 'data'),
         Output('net-liquidation-value', 'children'),
         Output('net-liquidation-value-change', 'children'),
         Output('call-value', 'children'),
@@ -123,7 +131,7 @@ def generate_control_card():
         Output('equity-value', 'children'),
         Output('equity-value-change', 'children')
     ],
-    Input("refresh-btn", "n_clicks"),
+    Input('refresh-btn', 'n_clicks'),
     prevent_initial_call=False,
 )
 def retrieve_account_data(refresh_btn__click):
@@ -151,12 +159,32 @@ def retrieve_account_data(refresh_btn__click):
 @app.callback(
     [Output("datatable-interactivity", "data"),
      Output("datatable-interactivity", "columns")],
-    Input("account-data", "data"),
+    [Input('table-dropdown', 'value'),
+     Input("account-data", "data")],
     prevent_initial_call=True,
 )
-def process_account_data(account_data):
-    df = json_normalize(account_data['OPTION']['positions'], sep='_')
-    return df.to_dict('records'), [{"name": i, "id": i} for i in df.columns]
+def process_account_data(selected_value, account_data):
+    df = pd.json_normalize(account_data['OPTION']['positions'], sep='_')
+
+    if selected_value == 'ALL_DATA':
+        data = df.to_dict('records')
+        # TODO: rearrange columns
+        columns = [{"name": i, "id": i} for i in df.columns]
+    elif selected_value == 'EXPIRATION':
+        result = get_expiration_date_summary(df)
+        data = result.to_dict('records')
+        columns = [{"name": 'Expiration', "id": 'expiration_date', "type": "datetime"},
+                   {"name": 'Total Market Value', "id": 'marketValue_sum', 'format': FormatTemplate.money(2),
+                    'type': 'numeric'},
+                   {"name": 'Contract Type Count', "id": 'instrument_putCall_count', 'type': 'numeric'},
+                   {"name": 'Call Market Value', "id": 'call_mark_perc', 'format': FormatTemplate.percentage(1),
+                    'type': 'numeric'},
+                   {"name": 'Call Type', "id": 'call_vol_perc', 'format': FormatTemplate.percentage(1),
+                    'type': 'numeric'}]
+
+    else:
+        raise PreventUpdate
+    return data, columns
 
 
 @app.callback(
