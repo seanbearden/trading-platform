@@ -86,7 +86,7 @@ Resources:
       ImageConfig:
         Command: [ "app.lambda_handler" ]
       Architectures: [x86_64]
-      MemorySize: 1024  # Specify memory size here
+      MemorySize: 2048  # Specify memory size here
       Timeout: 600
       Environment:
         Variables:
@@ -110,7 +110,7 @@ Resources:
         DailyTrigger:
           Type: Schedule
           Properties:
-            Schedule: cron(0 15 ? * MON-FRI *)
+            Schedule: cron(15 14 ? * MON-FRI *)
       Environment:
         Variables:
           ALPHAVANTAGE_API_KEY: !Sub '{{resolve:ssm:/ALPHAVANTAGE_API_KEY}}'
