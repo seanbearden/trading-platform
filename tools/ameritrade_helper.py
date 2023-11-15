@@ -1,7 +1,9 @@
 import boto3
+from datetime import datetime
 import json
 import logging
 import os
+import re
 import requests
 # from selenium import webdriver
 from tda import auth, client, orders
@@ -276,3 +278,26 @@ def cleanup_token(temp_file_path, secret_name, token_dict):
 
     # Ensure to delete the temporary file after use
     os.unlink(temp_file_path)
+
+
+def get_date_from_contract_details(text: str):
+    """
+
+    Args:
+        text: text like 'SHOP Nov 17 2023 60.0 Put'
+
+    Returns:
+        extracted_date: a datetime object created from the extracted date.
+    """
+    # Use a regular expression to find the date
+    date_pattern = r'(\bJan\b|\bFeb\b|\bMar\b|\bApr\b|\bMay\b|\bJun\b|\bJul\b|\bAug\b|\bSep\b|\bOct\b|\bNov\b|\bDec\b) \d{1,2} \d{4}'
+    match = re.search(date_pattern, text)
+
+    if match:
+        date_str = match.group()
+        # Parse the date string into a datetime object
+        extracted_date = datetime.strptime(date_str, '%b %d %Y')
+    else:
+        raise "No date found in the string."
+
+    return extracted_date
