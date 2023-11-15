@@ -112,6 +112,16 @@ def create_sync_playwright_browser(
     return browser.chromium.launch(headless=headless, args=args)
 
 
+def get_prompt(my_date):
+    return f"""Act as my investment advisor and create a detailed report of the current US stock market ({my_date.strftime('%Y-%m-%d %H:%M:%S %z')}). 
+            Use the search tool to find sufficient sources. 
+            Scrape cnbc.com and marketwatch.com
+            The report should contain many market details and updates. 
+            If there is an issue retrieving data, try again several times, finding a different URL if necessary.
+            Ask many targeted questions when using search before creating the synopsis. 
+            Note whether the market is open, or when it is anticipated to open.
+            The tool_schema should always include action."""
+
 def daily_synopsis_async(temperature=1, model="gpt-4-1106-preview", verbose=True):
     # Instantiations and function calls
     llm = ChatOpenAI(temperature=temperature, model=model)
@@ -140,13 +150,7 @@ def daily_synopsis_async(temperature=1, model="gpt-4-1106-preview", verbose=True
 
     my_date = datetime.now(pytz.timezone('US/Eastern'))
 
-    result = agent_chain.arun(f"""Create synopsis of the current US stock market ({my_date.strftime('%Y-%m-%d')}). 
-        Use the search tool to find several sources and make sure to cite them. 
-        The report should be succinct with important data presented. 
-        Scrape marketwatch.com for current values of indices and stocks. 
-        If there is an issue retrieving data, try again.
-        Always return a report when finished. 
-        The tool_schema should always include action.""")
+    result = agent_chain.arun(get_prompt(my_date))
 
     return result
 
@@ -178,13 +182,7 @@ def daily_synopsis(temperature=1, model="gpt-4-1106-preview", verbose=True):
 
     my_date = datetime.now(pytz.timezone('US/Eastern'))
 
-    result = agent_chain.run(f"""Create synopsis of the current US stock market ({my_date.strftime('%Y-%m-%d')}). 
-        Use the search tool to find several sources and make sure to cite them. 
-        The report should be succinct with important data presented. 
-        Scrape marketwatch.com for current values of indices and stocks. 
-        If there is an issue retrieving data, try again.
-        Always return a report when finished. 
-        The tool_schema should always include action.""")
+    result = agent_chain.run(get_prompt(my_date))
 
     return result
 
@@ -209,4 +207,5 @@ def entry_point(temperature=1, model="gpt-4-1106-preview", verbose=True):
 
 
 if __name__ == "__main__":
-    print(entry_point())
+    # print(entry_point())
+    print(daily_synopsis())
