@@ -1,65 +1,76 @@
-from dotenv import load_dotenv
-from io import StringIO
-import os
 import pandas as pd
+from unittest.mock import Mock, patch
+import pytest
+from tools.finviz_helper import (
+    get_sp500_tickers_sectors,
+    get_nasdaq100_tickers_sectors,
+    get_djia_tickers_sectors,
+    get_screener,
+    get_groups,
+    verify_group_name,
+    verify_subgroup_name,
+    get_group_layout,
+    get_request,
+    get_screener_layout
+)
 
-from tools.finviz_helper import get_screener
-import unittest
-from unittest.mock import patch, Mock
+# Mock data to be used across multiple tests
+mocked_screener_data = pd.DataFrame({
+    'Ticker': ['AAPL', 'MSFT', 'GOOGL'],
+    'Sector': ['Technology', 'Technology', 'Communication Services']
+})
 
-load_dotenv()
+@pytest.fixture
+def mock_requests_get():
+    with patch('requests.get') as mock_get:
+        yield mock_get
 
+@pytest.fixture
+def mock_screener():
+    with patch('pyfinviz.screener.Screener') as mock_screener_class:
+        mock_screener_instance = mock_screener_class.return_value
+        mock_screener_instance.data_frames.values.return_value = [mocked_screener_data]
+        yield mock_screener_instance
 
-class TestFinvizUtils(unittest.TestCase):
+# Test functions for the screener data retrieval
+# def test_get_sp500_tickers_sectors(mock_screener):
+#     df = get_sp500_tickers_sectors()
+#     assert not df.empty
+#     assert 'Ticker' in df.columns and 'Sector' in df.columns
+#
+# def test_get_nasdaq100_tickers_sectors(mock_screener):
+#     df = get_nasdaq100_tickers_sectors()
+#     assert not df.empty
+#     assert 'Ticker' in df.columns and 'Sector' in df.columns
+#
+# def test_get_djia_tickers_sectors(mock_screener):
+#     df = get_djia_tickers_sectors()
+#     assert not df.empty
+#     assert 'Ticker' in df.columns and 'Sector' in df.columns
 
-    def setUp(self):
-        self.api_token = "test_token"
-        self.layout = "Overview"
-        self.expected_url = f"https://elite.finviz.com/export.ashx?v={self.layout}&auth={self.api_token}"
+# Tests for other utility functions
+def test_verify_group_name():
+    assert verify_group_name('sector') == 'sector'
+    assert verify_group_name('invalid') == 'sector'
 
-    # @patch('requests.get')
-    # def test_get_screener_successful_response(self, mock_get):
-    #     # Mocking a successful response
-    #     mock_response = Mock()
-    #     mock_response.status_code = 200
-    #     mock_response.text = 'success'
-    #     mock_get.return_value = mock_response
-    #
-    #     response = get_screener(self.api_token, self.filters)
-    #
-    #     mock_get.assert_called_once_with(self.expected_url)
-    #     self.assertEqual(response.status_code, 200)
-    #     self.assertEqual(response.text, 'success')
+def test_verify_subgroup_name():
+    with pytest.raises(Exception):
+        verify_subgroup_name('sector', 'invalid')  # Should raise an exception
+    assert verify_subgroup_name('industry', 'basicmaterials') == 'basicmaterials'
 
-    # @patch('requests.get')
-    # def test_get_screener_error_response(self, mock_get):
-    #     # Mocking an error response (e.g., 404)
-    #     mock_response = Mock()
-    #     mock_response.status_code = 404
-    #     mock_response.text = 'not found'
-    #     mock_get.return_value = mock_response
-    #
-    #     response = get_screener(self.api_token, self.filters)
-    #
-    #     mock_get.assert_called_once_with(self.expected_url)
-    #     self.assertEqual(response.status_code, 404)
-    #     self.assertEqual(response.text, 'not found')
+def test_get_group_layout():
+    assert get_group_layout('Overview') == '110'
+    assert get_group_layout('Invalid') == '110'  # Should return default '110'
 
-    # def test_get_screener_layouts(self):
-    #     symbols = ['AAPL', 'META', 'AMZN', 'GOOGL', 'TSLA']
-    #     layouts = ['Overview', 'Valuation', 'Financial', 'Ownership', 'Performance', 'Technical', 'Custom']
-    #     for layout in layouts:
-    #         response = get_screener(os.getenv('FINVIZ_API_KEY'), layout=layout, symbols=symbols, sleep_secs=2)
-    #         data_str = response.text
-    #
-    #         # Using StringIO to convert the string data to a file-like object so it can be read into a pandas DataFrame
-    #         data_io = StringIO(data_str)
-    #
-    #         # Reading the data into a pandas DataFrame
-    #         df = pd.read_csv(data_io)
-    #         for ticker in df['Ticker']:
-    #             self.assertIn(ticker, symbols)
+def test_get_screener_layout():
+    assert get_screener_layout('Overview') == '111'
+    assert get_screener_layout('Invalid') == '111'  # Should return default '111'
 
+def test_get_request(mock_requests_get):
+    api_token = 'fake_api_token'
+    filters = 'fake_filters'
+    get_request(api_token, filters)
+    mock_requests_get.assert_called_once_with(f"https://elite.finviz.com/export.ashx?{filters}&auth={api_token}")
 
-if __name__ == '__main__':
-    unittest.main()
+# You would also want to test get_screener and get_groups, but these would require more complex mocking
+# to simulate the API responses and handle the sleep_secs argument properly.
