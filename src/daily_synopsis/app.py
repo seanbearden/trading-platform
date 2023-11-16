@@ -30,12 +30,12 @@ def lambda_handler(event, context):
     except Exception as e:
         # Handle any exceptions that occurred during processing
         print(e)  # Logging the exception can be helpful for debugging
-
-        # Return an error response
-        return {
-            'statusCode': 500,
-            'body': json.dumps({'error': str(e)})
-        }
+        raise Exception("Daily Synopsis Error: Status Code 500")
+        # # Return an error response
+        # return {
+        #     'statusCode': 500,
+        #     'body': json.dumps({'error': str(e)})
+        # }
 
 
 if __name__ == '__main__':
