@@ -17,6 +17,24 @@ def tda_auth(api_key,
              token_path='./res/token.json',
              redirect_uri='https://localhost:8895'
              ):
+    """
+    Authenticates the client with TD Ameritrade API.
+
+    This function attempts to authenticate using an existing token file. If the file
+    is not found, it raises an exception suggesting to generate the token using Chromedriver.
+
+    Args:
+        api_key (str): The API key for TD Ameritrade.
+        chrome_driver_path (str, optional): The file path to the Chromedriver. Defaults to None.
+        token_path (str, optional): The file path to the token JSON file. Defaults to './res/token.json'.
+        redirect_uri (str, optional): The redirect URI set for the TD Ameritrade app. Defaults to 'https://localhost:8895'.
+
+    Returns:
+        Client: An authenticated TD Ameritrade client.
+
+    Raises:
+        Exception: If the token file is not found and `chrome_driver_path` is not provided.
+    """
     try:
         c = auth.client_from_token_file(token_path, api_key)
     except FileNotFoundError:
@@ -30,6 +48,17 @@ def tda_auth(api_key,
 
 
 def get_quote(symbol, tda_auth_func=tda_auth, **kwargs):
+    """
+    Retrieves quote data for a specific symbol from TD Ameritrade.
+
+    Args:
+        symbol (str): The ticker symbol to get the quote for.
+        tda_auth_func (function): The authentication function to use. Defaults to `tda_auth`.
+        **kwargs: Additional keyword arguments to pass to `tda_auth_func`.
+
+    Returns:
+        dict: The quote data for the given symbol.
+    """
     client_ = tda_auth_func(**kwargs)
     response = client_.get_quote(symbol)
     data = json_from_response(response)
@@ -37,6 +66,17 @@ def get_quote(symbol, tda_auth_func=tda_auth, **kwargs):
 
 
 def get_quotes(symbols, tda_auth_func=tda_auth, **kwargs):
+    """
+    Retrieves quotes for multiple symbols from TD Ameritrade.
+
+    Args:
+        symbols (list): A list of ticker symbols to get quotes for.
+        tda_auth_func (function): The authentication function to use. Defaults to `tda_auth`.
+        **kwargs: Additional keyword arguments to pass to `tda_auth_func`.
+
+    Returns:
+        dict: The quotes data for the given symbols.
+    """
     tda_client = tda_auth_func(**kwargs)
     return get_quotes_with_client(tda_client, symbols)
 
@@ -282,12 +322,16 @@ def cleanup_token(temp_file_path, secret_name, token_dict):
 
 def get_date_from_contract_details(text: str):
     """
+    Extracts the expiration date from a contract description text.
 
     Args:
-        text: text like 'SHOP Nov 17 2023 60.0 Put'
+        text (str): A string containing the contract description, typically including the expiration date.
 
     Returns:
-        extracted_date: a datetime object created from the extracted date.
+        datetime: The extracted expiration date as a datetime object.
+
+    Raises:
+        ValueError: If no date is found in the string.
     """
     # Use a regular expression to find the date
     date_pattern = r'(\bJan\b|\bFeb\b|\bMar\b|\bApr\b|\bMay\b|\bJun\b|\bJul\b|\bAug\b|\bSep\b|\bOct\b|\bNov\b|\bDec\b) \d{1,2} \d{4}'
@@ -304,6 +348,20 @@ def get_date_from_contract_details(text: str):
 
 
 def get_expiration_date_summary(df):
+    """
+    Aggregates option contract data in a DataFrame by their expiration dates.
+
+    This function adds an 'expiration_date' column to the DataFrame by extracting dates from contract descriptions.
+    It then groups the data by expiration dates and calculates the total market value, percentage of call market value,
+    total count of contracts, and percentage of call contracts.
+
+    Args:
+        df (DataFrame): A pandas DataFrame containing option contract data, including a column 'instrument_description'
+                        with contract descriptions.
+
+    Returns:
+        DataFrame: A summarized DataFrame grouped by expiration dates with aggregated contract data.
+    """
     df['expiration_date'] = df['instrument_description'].apply(get_date_from_contract_details)
     # Group by 'expiration_date' and aggregate
     result = df.groupby('expiration_date').agg({
