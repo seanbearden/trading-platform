@@ -1,10 +1,66 @@
+# Standard library imports
 import unittest
-from requests.models import Response
-from tools.ameritrade_helper import get_quote, tda_auth, verify_entry, get_option_chain
-
-from tda import client
-import pytest
 from unittest.mock import patch, MagicMock
+
+# Third-party imports
+import pandas as pd
+import pytest
+from requests.models import Response
+from tda import client
+
+# Local application/library specific imports
+from tools.ameritrade_helper import get_quote, tda_auth, verify_entry, get_option_chain, get_expiration_date_summary
+
+
+class TestExpirationDateSummary:
+
+    @pytest.fixture(scope='class')
+    def sample_data(self):
+        # This method can be used to set up data that is common across tests
+        data = {
+            'instrument_symbol': ['CVX_111723C145', 'AAPL_121523C150'],
+            'marketValue': [100, 200],
+            'instrument_putCall': ['CALL', 'PUT']
+        }
+        return pd.DataFrame(data)
+
+    def test_correct_date_extraction(self, sample_data):
+        result = get_expiration_date_summary(sample_data)
+        assert all(result['expiration_date'] == pd.Series(pd.to_datetime(['2023-11-17', '2023-12-15'])).dt.date)
+
+    def test_aggregation_accuracy(self):
+        data = {
+            'instrument_symbol': ['CVX_111723C145', 'CVX_111723P145000'],
+            'marketValue': [100, 200],
+            'instrument_putCall': ['CALL', 'PUT']
+        }
+        df = pd.DataFrame(data)
+        result = get_expiration_date_summary(df)
+        assert result.loc[result['expiration_date'] == pd.to_datetime('2023-11-17').date(), 'marketValue_sum'].iloc[
+                   0] == 300
+        assert result.loc[result['expiration_date'] == pd.to_datetime('2023-11-17').date(), 'call_mark_perc'].iloc[
+                   0] == 100 / 300
+
+    def test_empty_dataframe(self):
+        df = pd.DataFrame()
+        result = get_expiration_date_summary(df)
+        assert result.empty
+
+    def test_missing_values(self):
+        data = {
+            'instrument_symbol': ['CVX_111723C145', None],
+            'marketValue': [100, None],
+            'instrument_putCall': ['CALL', None]
+        }
+        df = pd.DataFrame(data)
+        result = get_expiration_date_summary(df)
+        assert not result.empty  # Depending on how you handle missing values, this assertion might change
+
+    def test_result_format(self, sample_data):
+        result = get_expiration_date_summary(sample_data)
+        assert set(result.columns) == {'expiration_date', 'marketValue_sum', 'call_mark_perc',
+                                       'instrument_putCall_count', 'call_vol_perc'}
+        assert pd.api.types.is_object_dtype(result['expiration_date'])
 
 
 class TestAmeritradeUtils(unittest.TestCase):

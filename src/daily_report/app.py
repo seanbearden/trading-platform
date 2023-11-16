@@ -44,28 +44,28 @@ from tools.os_helper import delete_files
 
 
 def lambda_handler(event, context):
-    lambda_client = boto3.client('lambda')
-    synopsis_attempts = 3
-    daily_synopsis_function_arn = os.environ['DAILY_SYNOPSIS_FUNCTION_NAME']
-
-    for attempt in range(synopsis_attempts):
-        # Invoke DailySynopsisFunction
-        lambda_response = lambda_client.invoke(
-            FunctionName=daily_synopsis_function_arn,
-            InvocationType='RequestResponse',
-            Payload=json.dumps(event)
-        )
-
-        lambda_payload = json.loads(lambda_response['Payload'].read())
-        lambda_payload_body = json.loads(lambda_payload.get('body', '{}'))
-        if lambda_payload.get('statusCode') == 200:
-            gpt_daily_synopsis = lambda_payload_body['results']
-            break
-        elif lambda_payload.get('statusCode') == 500:
-            error = lambda_payload_body['error']
-            gpt_daily_synopsis = f'There was an error generating the report: {error}'
-        else:
-            gpt_daily_synopsis = 'There is an unknown error occuring in DailySynopsisFunction'
+    # lambda_client = boto3.client('lambda')
+    # synopsis_attempts = 3
+    # daily_synopsis_function_arn = os.environ['DAILY_SYNOPSIS_FUNCTION_NAME']
+    #
+    # for attempt in range(synopsis_attempts):
+    #     # Invoke DailySynopsisFunction
+    #     lambda_response = lambda_client.invoke(
+    #         FunctionName=daily_synopsis_function_arn,
+    #         InvocationType='RequestResponse',
+    #         Payload=json.dumps(event)
+    #     )
+    #
+    #     lambda_payload = json.loads(lambda_response['Payload'].read())
+    #     lambda_payload_body = json.loads(lambda_payload.get('body', '{}'))
+    #     if lambda_payload.get('statusCode') == 200:
+    #         gpt_daily_synopsis = lambda_payload_body['results']
+    #         break
+    #     elif lambda_payload.get('statusCode') == 500:
+    #         error = lambda_payload_body['error']
+    #         gpt_daily_synopsis = f'There was an error generating the report: {error}'
+    #     else:
+    #         gpt_daily_synopsis = 'There is an unknown error occuring in DailySynopsisFunction'
 
     # gpt_daily_synopsis = daily_synopsis(temperature=1, model="gpt-4-1106-preview", verbose=True)
     # files to be removed from /tmp at end of execution
