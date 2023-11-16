@@ -1,0 +1,17 @@
+# Use an AWS-provided base image for your runtime (e.g., Python 3.8)
+FROM --platform=linux/x86_64 public.ecr.aws/lambda/python:3.8
+
+RUN mkdir ./tools
+
+# Copy function code and dependencies
+COPY src/portfolio_alert/app.py ./
+COPY src/portfolio_alert/requirements.txt ./
+
+COPY tools/ameritrade_helper.py ./tools
+COPY tools/aws_helper.py ./tools
+COPY tools/requests_helper.py ./tools
+
+# Install dependencies
+RUN pip install -r requirements.txt
+
+CMD ["app.lambda_handler"]

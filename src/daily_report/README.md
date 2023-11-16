@@ -2,8 +2,7 @@
 Using AWS SAM with Lambda.
 
 ## Requirements
-- Must use Python 3.8 for tda-api. 
-- 
+- Must use Python 3.8 for tda-api.
 
 
 ## Outline
