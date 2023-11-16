@@ -3,8 +3,19 @@ from scipy.signal import argrelextrema
 
 
 def calculate_ichimoku(df):
-    # df['date'] = pd.to_datetime(df.index)
-    # df.index = pd.to_datetime(df['date'])
+    """
+    Calculates the Ichimoku Cloud indicator components for a given DataFrame.
+
+    This function computes the Tenkan-sen, Kijun-sen, Senkou Span A, Senkou Span B, and Chikou Span
+    for each row in the DataFrame. The DataFrame must contain 'high', 'close', and 'low' columns.
+
+    Args:
+        df (DataFrame): A pandas DataFrame with columns 'high', 'close', and 'low'.
+
+    Returns:
+        DataFrame: The input DataFrame with new columns added for each Ichimoku component:
+                   'tenkan_sen', 'kijun_sen', 'senkou_span_a', 'senkou_span_b', and 'chikou_span'.
+    """
     high_prices = df['high']
     close_prices = df['close']
     low_prices = df['low']
@@ -22,8 +33,22 @@ def calculate_ichimoku(df):
     return df
 
 
-# Function to identify local maxima
 def identify_multi_tops(data, tolerance=0.005, order=1):
+    """
+    Identifies potential multi-top formations in a given dataset.
+
+    This function finds local maxima (potential tops) in the dataset based on the close and open prices.
+    It then evaluates these tops to determine if they form a multi-top pattern based on the specified tolerance.
+
+    Args:
+        data (DataFrame): A pandas DataFrame with at least 'close' and 'open' columns.
+        tolerance (float, optional): The tolerance level used to identify additional touches to the resistance. Defaults to 0.005.
+        order (int, optional): The order parameter for the argrelextrema function. Defaults to 1.
+
+    Returns:
+        tuple: A tuple containing the indices of touches and the average resistance value if a multi-top is identified,
+               otherwise (None, None).
+    """
     data_close = data['close']
     data_open = data['open']
     # Finding local maxima based on adjusted close and adjusted open
@@ -44,8 +69,22 @@ def identify_multi_tops(data, tolerance=0.005, order=1):
     return touches, resistance_value
 
 
-# Function to identify local minima
 def identify_multi_bottoms(data, tolerance=0.005, order=1):
+    """
+    Identifies potential multi-bottom formations in a given dataset.
+
+    This function finds local minima (potential bottoms) in the dataset based on the close and open prices.
+    It then evaluates these bottoms to determine if they form a multi-bottom pattern based on the specified tolerance.
+
+    Args:
+        data (DataFrame): A pandas DataFrame with at least 'close' and 'open' columns.
+        tolerance (float, optional): The tolerance level used to identify additional touches to the support. Defaults to 0.005.
+        order (int, optional): The order parameter for the argrelextrema function. Defaults to 1.
+
+    Returns:
+        tuple: A tuple containing the indices of touches and the average support value if a multi-bottom is identified,
+               otherwise (None, None).
+    """
     data_close = data['close']
     data_open = data['open']
     # Finding local minima based on adjusted close and adjusted open

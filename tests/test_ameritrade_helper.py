@@ -1,10 +1,10 @@
 import unittest
-from unittest.mock import MagicMock, patch
 from requests.models import Response
 from tools.ameritrade_helper import get_quote, tda_auth, verify_entry, get_option_chain
-from unittest.mock import MagicMock, patch
-import pytest
+
 from tda import client
+import pytest
+from unittest.mock import patch, MagicMock
 
 
 class TestAmeritradeUtils(unittest.TestCase):
@@ -122,10 +122,42 @@ class TestAmeritradeUtils(unittest.TestCase):
                                                              strike=150)
         assert result.json() == {'data': 'dummy_data'}
 
-    # def test_get_option_chain_invalid_contract_type(self):
-    #     with pytest.raises(ValueError, match='Invalid value for contract_type. Choose CALL or PUT.'):
-    #         get_option_chain('AAPL', 'INVALID', 'dummy_tda_api_key', strike=150)
 
+
+
+# Mock the TD Ameritrade client object
+@pytest.fixture
+def mock_tda_client():
+    with patch('tools.ameritrade_helper.client') as mock_client:
+        yield mock_client
+
+# Test tda_auth function
+def test_tda_auth_token_file_exists():
+    with patch('tools.ameritrade_helper.auth.client_from_token_file') as mock_auth:
+        tda_auth(api_key='dummy_key', token_path='dummy_path')
+        mock_auth.assert_called_with('dummy_path', 'dummy_key')
+
+def test_tda_auth_token_file_not_found():
+    with patch('tools.ameritrade_helper.auth.client_from_token_file', side_effect=FileNotFoundError):
+        with pytest.raises(Exception):
+            tda_auth(api_key='dummy_key', token_path='dummy_path')
+
+
+# # Test get_quote function
+# def test_get_quote(mock_tda_client):
+#     # Setup mock response
+#     mock_response = MagicMock()
+#     mock_response.json.return_value = {'symbol': 'AAPL', 'price': 100}
+#     mock_response.status_code = 200  # Set the status_code explicitly
+#
+#     mock_tda_client.return_value.get_quote.return_value = mock_response
+#
+#     # Call the function
+#     result = get_quote('AAPL', tda_auth_func=lambda **kwargs: mock_tda_client)
+#
+#     # Assertions
+#     assert result == {'symbol': 'AAPL', 'price': 100}
+#     mock_tda_client.return_value.get_quote.assert_called_with('AAPL')
 
 if __name__ == '__main__':
     unittest.main()
