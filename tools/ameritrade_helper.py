@@ -3,6 +3,7 @@ from datetime import datetime
 import json
 import logging
 import os
+import pandas as pd
 import re
 import requests
 # from selenium import webdriver
@@ -334,13 +335,11 @@ def get_date_from_contract_details(text: str):
         ValueError: If no date is found in the string.
     """
     # Use a regular expression to find the date
-    date_pattern = r'(\bJan\b|\bFeb\b|\bMar\b|\bApr\b|\bMay\b|\bJun\b|\bJul\b|\bAug\b|\bSep\b|\bOct\b|\bNov\b|\bDec\b) \d{1,2} \d{4}'
-    match = re.search(date_pattern, text)
-
+    match = re.search(r'_(\d{6})', text)
     if match:
-        date_str = match.group()
+        date_str = match.group(1)
         # Parse the date string into a datetime object
-        extracted_date = datetime.strptime(date_str, '%b %d %Y')
+        extracted_date = datetime.strptime(date_str, '%m%d%y')
     else:
         raise "No date found in the string."
 
@@ -362,7 +361,17 @@ def get_expiration_date_summary(df):
     Returns:
         DataFrame: A summarized DataFrame grouped by expiration dates with aggregated contract data.
     """
-    df['expiration_date'] = df['instrument_description'].apply(get_date_from_contract_details)
+
+    # Check if the DataFrame is empty
+    if df.empty:
+        # Create and return an empty DataFrame with the expected structure
+        return pd.DataFrame(columns=['expiration_date', 'marketValue_sum', 'marketValue_call_percentage',
+                                     'instrument_putCall_count', 'instrument_putCall_call_percentage'])
+
+    df['instrument_symbol'] = df['instrument_symbol'].fillna('XXX_010100U000')
+    df['marketValue'] = df['marketValue'].fillna(0)
+
+    df['expiration_date'] = df['instrument_symbol'].apply(get_date_from_contract_details)
     # Group by 'expiration_date' and aggregate
     result = df.groupby('expiration_date').agg({
         'marketValue': ['sum',
@@ -381,3 +390,4 @@ def get_expiration_date_summary(df):
     result['expiration_date'] = result['expiration_date'].dt.date
 
     return result
+
