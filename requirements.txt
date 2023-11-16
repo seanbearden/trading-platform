@@ -15,6 +15,7 @@ pydantic==2.4.2
 pyfinviz~=0.18
 python-dotenv~=1.0.0
 pytest~=7.4.3
+pytest-cov~=4.1.0
 pytz~=2023.3.post1
 reportlab==4.0.6
 requests==2.31.0
