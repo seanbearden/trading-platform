@@ -1,9 +1,9 @@
 alpha-vantage==2.3.1
-boto3~=1.28.78
-botocore~=1.31.78
+boto3==1.29.1
+botocore~=1.31.85
 dash~=2.14.1
 google-api-python-client==2.106.0
-langchain~=0.0.331
+langchain==0.0.336
 matplotlib~=3.7.3
 mplfinance==0.12.10b0
 numpy~=1.24.4
@@ -12,12 +12,12 @@ pandas~=2.0.3
 playwright~=1.39.0
 plotly~=5.18.0
 pydantic==2.4.2
-pyfinviz~=0.18
+pyfinviz~=0.19
 python-dotenv~=1.0.0
 pytest~=7.4.3
 pytest-cov~=4.1.0
 pytz~=2023.3.post1
-reportlab==4.0.6
+reportlab==4.0.7
 requests==2.31.0
 scipy~=1.10.1
 seaborn~=0.13.0
