@@ -2,7 +2,6 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: An AWS Serverless Application to generate PDF reports and send via email.
 
-
 Resources:
   ReportBucket:
     Type: AWS::S3::Bucket
@@ -12,79 +11,13 @@ Resources:
         Rules:
           - Status: Enabled
             ExpirationInDays: 7
-#  MyApi:
-#    Type: AWS::Serverless::Api
-#    Properties:
-#      StageName: Prod
-#      Auth:
-#        ApiKeyRequired: true
-#
-#  MyUsagePlan:
-#    Type: "AWS::ApiGateway::UsagePlan"
-#    Properties:
-#      ApiStages:
-#        - ApiId:
-#            Ref: "MyApi"
-#          Stage: "Prod"
-#      Description: "A usage plan for important customers"
-#      Quota:
-#        Limit: 5000
-#        Offset: 0
-#        Period: "MONTH"
-#      Throttle:
-#        BurstLimit: 200
-#        RateLimit: 100
-#
-#  MyApiKey:
-#    Type: "AWS::ApiGateway::ApiKey"
-#    Properties:
-#      Description: "My API Key"
-#      Enabled: true
-#      GenerateDistinctId: true
-#      Name: "MyAPIKey"
-#      StageKeys:
-#        - RestApiId:
-#            Ref: "MyApi"
-#          StageName: "Prod"
-
-#  GenerateReportFunction:
-#    Type: AWS::Serverless::Function
-#    Properties:
-#      PackageType: Image
-#      ImageConfig:
-#        Command: [ "app.lambda_handler" ]
-#      Timeout: 15
-#      Events:
-#        HttpPost:
-#          Type: Api
-#          Properties:
-#            Path: /report
-#            Method: post
-#            RestApiId:
-#              Ref: MyApi
-#      Policies:
-#        - Statement:
-#          - Effect: Allow
-#            Action:
-#              - ses:SendEmail
-#              - ses:SendRawEmail
-#            Resource: "*"
-#        - Statement: # New policy statement to allow ssm:GetParameter action
-#          - Effect: Allow
-#            Action:
-#              - ssm:GetParameter
-#            Resource: arn:aws:ssm:us-east-1:047672427450:parameter/ALPHAVANTAGE_API_KEY
-#    Metadata:
-#      Dockerfile: Dockerfile.report
-#      DockerContext: .
-#      DockerTag: v1
 
   DailySynopsisFunction:
     Type: AWS::Serverless::Function
     Properties:
       PackageType: Image
       ImageConfig:
-        Command: [ "app.lambda_handler" ]
+        Command: ["app.lambda_handler"]
       Architectures: [x86_64]
       MemorySize: 2048  # Specify memory size here
       Timeout: 600
@@ -102,15 +35,10 @@ Resources:
     Properties:
       PackageType: Image
       ImageConfig:
-        Command: [ "app.lambda_handler" ]
+        Command: ["app.lambda_handler"]
       Architectures: [x86_64]
       MemorySize: 256  # Specify memory size here
       Timeout: 900
-      Events:
-        DailyTrigger:
-          Type: Schedule
-          Properties:
-            Schedule: cron(15 14 ? * MON-FRI *)
       Environment:
         Variables:
           ALPHAVANTAGE_API_KEY: !Sub '{{resolve:ssm:/ALPHAVANTAGE_API_KEY}}'
@@ -124,10 +52,7 @@ Resources:
           GOOGLE_CSE_ID: !Sub '{{resolve:ssm:/GOOGLE_CSE_ID}}'
           SERPER_API_KEY: !Sub '{{resolve:ssm:/SERPER_API_KEY}}'
           BUCKET_NAME: !Ref ReportBucket
-          DAILY_SYNOPSIS_FUNCTION_NAME: !GetAtt DailySynopsisFunction.Arn
           MPLCONFIGDIR: "/tmp"
-#      Role: !GetAtt DailyReportFunctionRole.Arn
-
       Policies:
         - Statement:
             - Effect: Allow
@@ -155,50 +80,96 @@ Resources:
                 - s3:GetObject
               Resource:
                 - !Sub "arn:aws:s3:::${ReportBucket}/*"
-        - Statement:
-          - Effect: Allow
-            Action:
-              - lambda:InvokeFunction
-            Resource: !GetAtt DailySynopsisFunction.Arn
-
     Metadata:
       Dockerfile: Dockerfile.daily_report
       DockerContext: .
       DockerTag: v1
 
-#  DailyReportFunctionRole:
-#    Type: AWS::IAM::Role
-#    Properties:
-#      AssumeRolePolicyDocument:
-#        Version: '2012-10-17'
-#        Statement:
-#          - Effect: Allow
-#            Principal:
-#              Service: [lambda.amazonaws.com]
-#            Action: ['sts:AssumeRole']
-#      Policies:
-#        - PolicyName: DailyReportFunctionPolicy
-#          PolicyDocument:
-#            Version: '2012-10-17'
-#            Statement:
-#              - Effect: Allow
-#                Action:
-#                  - lambda:InvokeFunction
-#                Resource: !GetAtt DailySynopsisFunction.Arn
+  ReportGenerationStateMachine:
+    Type: "AWS::StepFunctions::StateMachine"
+    Properties:
+      DefinitionString: !Sub >
+        {
+          "Comment": "A Step Function to run Daily Synopsis and Report Functions",
+          "StartAt": "RunDailySynopsis",
+          "States": {
+            "RunDailySynopsis": {
+              "Type": "Task",
+              "Resource": "${DailySynopsisFunction.Arn}",
+              "Next": "RunDailyReport",
+              "Retry": [
+                {
+                  "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ]
+            },
+            "RunDailyReport": {
+              "Type": "Task",
+              "Resource": "${DailyReportFunction.Arn}",
+              "End": true
+            }
+          }
+        }
+      RoleArn: !GetAtt StepFunctionsExecutionRole.Arn
 
-#  UsagePlanKey:
-#    Type: "AWS::ApiGateway::UsagePlanKey"
-#    Properties:
-#      KeyId:
-#        Ref: "MyApiKey"
-#      KeyType: "API_KEY"
-#      UsagePlanId:
-#        Ref: "MyUsagePlan"
+  StepFunctionsExecutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "states.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: "LambdaInvokePolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "lambda:InvokeFunction"
+                Resource:
+                  - !GetAtt DailySynopsisFunction.Arn
+                  - !GetAtt DailyReportFunction.Arn
+
+  StateMachineExecutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "events.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: "StateMachineExecutionPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action: "states:StartExecution"
+                Resource: !Ref ReportGenerationStateMachine
+
+  StateMachineTrigger:
+    Type: "AWS::Events::Rule"
+    Properties:
+      ScheduleExpression: "cron(15 14 ? * MON-FRI *)"  # Adjust depending on daylight saving
+      Targets:
+        - Arn: !Ref ReportGenerationStateMachine
+          Id: "StateMachineTrigger"
+          RoleArn: !GetAtt StateMachineExecutionRole.Arn
+      State: "ENABLED"
 
 Outputs:
-#  ApiURL:
-#    Description: "API endpoint URL for Prod stage"
-#    Value: !Sub "https://${MyApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/report"
   ReportBucketName:
     Description: "Name of the bucket to store reports"
     Value: !Ref ReportBucket
+  StateMachineArn:
+    Description: "ARN of the Step Functions State Machine"
+    Value: !Ref ReportGenerationStateMachine
