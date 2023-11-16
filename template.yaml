@@ -3,6 +3,57 @@ Transform: AWS::Serverless-2016-10-31
 Description: An AWS Serverless Application to generate PDF reports and send via email.
 
 Resources:
+  PositionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Positions
+      AttributeDefinitions:
+        - AttributeName: symbol
+          AttributeType: S
+        - AttributeName: storedTimestamp
+          AttributeType: S
+        # Define additional attributes for GSIs if needed
+      KeySchema:
+        - AttributeName: symbol
+          KeyType: HASH
+        - AttributeName: storedTimestamp
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+      # Define GSIs if needed
+
+  PortfolioAlertFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageConfig:
+        Command: [ "app.lambda_handler" ]
+      Architectures: [ x86_64 ]
+      MemorySize: 128  # Specify memory size here
+      Timeout: 60
+      Environment:
+        Variables:
+          TDA_API_KEY: !Sub '{{resolve:ssm:/TDA_API_KEY}}'
+          TDA_ACCOUNT_ID: !Sub '{{resolve:ssm:/TDA_ACCOUNT_ID}}'
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PositionsTable
+        - Statement:
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+              - secretsmanager:PutSecretValue
+            Resource: arn:aws:secretsmanager:us-east-1:047672427450:secret:AMERITRADE_TOKEN_JSON-*
+      Events:
+        ScheduleEvent:
+          Type: Schedule
+          Properties:
+            Schedule: cron(15 21 ? * MON-FRI *)
+
+    Metadata:
+      Dockerfile: Dockerfile.portfolio_alert
+      DockerContext: .
+      DockerTag: v1
+
   ReportBucket:
     Type: AWS::S3::Bucket
     Properties:
