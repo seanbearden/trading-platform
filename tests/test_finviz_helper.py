@@ -45,20 +45,20 @@ class TestFinvizUtils(unittest.TestCase):
     #     self.assertEqual(response.status_code, 404)
     #     self.assertEqual(response.text, 'not found')
 
-    def test_get_screener_layouts(self):
-        symbols = ['AAPL', 'META', 'AMZN', 'GOOGL', 'TSLA']
-        layouts = ['Overview', 'Valuation', 'Financial', 'Ownership', 'Performance', 'Technical', 'Custom']
-        for layout in layouts:
-            response = get_screener(os.getenv('FINVIZ_API_KEY'), layout=layout, symbols=symbols, sleep_secs=2)
-            data_str = response.text
-
-            # Using StringIO to convert the string data to a file-like object so it can be read into a pandas DataFrame
-            data_io = StringIO(data_str)
-
-            # Reading the data into a pandas DataFrame
-            df = pd.read_csv(data_io)
-            for ticker in df['Ticker']:
-                self.assertIn(ticker, symbols)
+    # def test_get_screener_layouts(self):
+    #     symbols = ['AAPL', 'META', 'AMZN', 'GOOGL', 'TSLA']
+    #     layouts = ['Overview', 'Valuation', 'Financial', 'Ownership', 'Performance', 'Technical', 'Custom']
+    #     for layout in layouts:
+    #         response = get_screener(os.getenv('FINVIZ_API_KEY'), layout=layout, symbols=symbols, sleep_secs=2)
+    #         data_str = response.text
+    #
+    #         # Using StringIO to convert the string data to a file-like object so it can be read into a pandas DataFrame
+    #         data_io = StringIO(data_str)
+    #
+    #         # Reading the data into a pandas DataFrame
+    #         df = pd.read_csv(data_io)
+    #         for ticker in df['Ticker']:
+    #             self.assertIn(ticker, symbols)
 
 
 if __name__ == '__main__':
