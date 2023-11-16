@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 from requests.models import Response
-from trading_platform.tools.helpers.ameritrade_utils import get_quote, tda_auth, verify_entry, get_option_chain
+from tools.ameritrade_helper import get_quote, tda_auth, verify_entry, get_option_chain
 from unittest.mock import MagicMock, patch
 import pytest
 from tda import client
