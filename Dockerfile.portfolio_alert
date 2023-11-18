@@ -10,6 +10,7 @@ COPY src/portfolio_alert/requirements.txt ./
 COPY tools/ameritrade_helper.py ./tools
 COPY tools/aws_helper.py ./tools
 COPY tools/requests_helper.py ./tools
+COPY tools/telegram_helper.py ./tools
 
 # Install dependencies
 RUN pip install -r requirements.txt

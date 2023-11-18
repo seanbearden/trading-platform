@@ -24,7 +24,8 @@ def lambda_handler(event, context):
 
         return {
             'statusCode': 200,
-            'body': json.dumps({'results': gpt_daily_synopsis})
+            'body': json.dumps({'results': gpt_daily_synopsis}),
+            'function': 'DailySynopsisFunction'
         }
 
     except Exception as e:
@@ -34,7 +35,8 @@ def lambda_handler(event, context):
         # # Return an error response
         # return {
         #     'statusCode': 500,
-        #     'body': json.dumps({'error': str(e)})
+        #     'body': json.dumps({'error': str(e)}),
+        #             'function': 'DailySynopsisFunction'
         # }
 
 
