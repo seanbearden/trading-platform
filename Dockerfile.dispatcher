@@ -1,0 +1,15 @@
+# Use an AWS-provided base image for your runtime (e.g., Python 3.8)
+FROM --platform=linux/x86_64 public.ecr.aws/lambda/python:3.8
+
+RUN mkdir ./tools
+
+# Copy function code and dependencies
+COPY src/dispatcher/app.py ./
+COPY src/dispatcher/requirements.txt ./
+
+COPY tools/telegram_helper.py ./tools
+
+# Install dependencies
+RUN pip install -r requirements.txt
+
+CMD ["app.lambda_handler"]
