@@ -3,6 +3,79 @@ Transform: AWS::Serverless-2016-10-31
 Description: An AWS Serverless Application to generate PDF reports and send via email.
 
 Resources:
+  PositionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Positions
+      AttributeDefinitions:
+        - AttributeName: symbol
+          AttributeType: S
+        - AttributeName: storedTimestamp
+          AttributeType: S
+        # Define additional attributes for GSIs if needed
+      KeySchema:
+        - AttributeName: symbol
+          KeyType: HASH
+        - AttributeName: storedTimestamp
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+      # Define GSIs if needed
+
+  CurrentBalancesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: CurrentBalances
+      AttributeDefinitions:
+        - AttributeName: accountId
+          AttributeType: S
+        - AttributeName: storedTimestamp
+          AttributeType: S
+        # Define additional attributes for GSIs if needed
+      KeySchema:
+        - AttributeName: accountId
+          KeyType: HASH
+        - AttributeName: storedTimestamp
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+      # Define GSIs if needed
+
+  PortfolioAlertFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageConfig:
+        Command: [ "app.lambda_handler" ]
+      Architectures: [ x86_64 ]
+      MemorySize: 128  # Specify memory size here
+      Timeout: 60
+      Environment:
+        Variables:
+          TDA_API_KEY: '{{resolve:ssm:/TDA_API_KEY}}'
+          TDA_ACCOUNT_ID: '{{resolve:ssm:/TDA_ACCOUNT_ID}}'
+          TELEGRAM_USER_ID: '{{resolve:ssm:/TELEGRAM_USER_ID}}'
+          TELEGRAM_BOT_TOKEN: '{{resolve:ssm:/TELEGRAM_BOT_TOKEN}}'
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PositionsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CurrentBalancesTable
+        - Statement:
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+              - secretsmanager:PutSecretValue
+            Resource: arn:aws:secretsmanager:us-east-1:047672427450:secret:AMERITRADE_TOKEN_JSON-*
+      Events:
+        ScheduleEvent:
+          Type: Schedule
+          Properties:
+            Schedule: cron(15 21 ? * MON-FRI *)
+
+    Metadata:
+      Dockerfile: Dockerfile.portfolio_alert
+      DockerContext: .
+      DockerTag: v1
+
   ReportBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -23,8 +96,8 @@ Resources:
       Timeout: 600
       Environment:
         Variables:
-          OPENAI_API_KEY: !Sub '{{resolve:ssm:/OPENAI_API_KEY}}'
-          SERPER_API_KEY: !Sub '{{resolve:ssm:/SERPER_API_KEY}}'
+          OPENAI_API_KEY: '{{resolve:ssm:/OPENAI_API_KEY}}'
+          SERPER_API_KEY: '{{resolve:ssm:/SERPER_API_KEY}}'
     Metadata:
       Dockerfile: Dockerfile.daily_synopsis
       DockerContext: .
@@ -41,16 +114,16 @@ Resources:
       Timeout: 900
       Environment:
         Variables:
-          ALPHAVANTAGE_API_KEY: !Sub '{{resolve:ssm:/ALPHAVANTAGE_API_KEY}}'
-          FINVIZ_API_KEY: !Sub '{{resolve:ssm:/FINVIZ_API_KEY}}'
-          IAM_ACCESS_KEY_ID: !Sub '{{resolve:ssm:/IAM_ACCESS_KEY_ID}}'
-          IAM_SECRET_ACCESS_KEY: !Sub '{{resolve:ssm:/IAM_SECRET_ACCESS_KEY}}'
-          TDA_API_KEY: !Sub '{{resolve:ssm:/TDA_API_KEY}}'
-          TDA_ACCOUNT_ID: !Sub '{{resolve:ssm:/TDA_ACCOUNT_ID}}'
-          OPENAI_API_KEY: !Sub '{{resolve:ssm:/OPENAI_API_KEY}}'
-          GOOGLE_API_KEY: !Sub '{{resolve:ssm:/GOOGLE_API_KEY}}'
-          GOOGLE_CSE_ID: !Sub '{{resolve:ssm:/GOOGLE_CSE_ID}}'
-          SERPER_API_KEY: !Sub '{{resolve:ssm:/SERPER_API_KEY}}'
+          ALPHAVANTAGE_API_KEY: '{{resolve:ssm:/ALPHAVANTAGE_API_KEY}}'
+          FINVIZ_API_KEY: '{{resolve:ssm:/FINVIZ_API_KEY}}'
+          IAM_ACCESS_KEY_ID: '{{resolve:ssm:/IAM_ACCESS_KEY_ID}}'
+          IAM_SECRET_ACCESS_KEY: '{{resolve:ssm:/IAM_SECRET_ACCESS_KEY}}'
+          TDA_API_KEY: '{{resolve:ssm:/TDA_API_KEY}}'
+          TDA_ACCOUNT_ID: '{{resolve:ssm:/TDA_ACCOUNT_ID}}'
+          OPENAI_API_KEY: '{{resolve:ssm:/OPENAI_API_KEY}}'
+          GOOGLE_API_KEY: '{{resolve:ssm:/GOOGLE_API_KEY}}'
+          GOOGLE_CSE_ID: '{{resolve:ssm:/GOOGLE_CSE_ID}}'
+          SERPER_API_KEY: '{{resolve:ssm:/SERPER_API_KEY}}'
           BUCKET_NAME: !Ref ReportBucket
           MPLCONFIGDIR: "/tmp"
       Policies:
@@ -91,20 +164,46 @@ Resources:
       DefinitionString: !Sub >
         {
           "Comment": "A Step Function to run Daily Synopsis and Report Functions",
-          "StartAt": "RunDailySynopsis",
+          "StartAt": "RunParallel",
           "States": {
-            "RunDailySynopsis": {
-              "Type": "Task",
-              "Resource": "${DailySynopsisFunction.Arn}",
-              "Next": "RunDailyReport",
-              "Retry": [
+            "RunParallel": {
+              "Type": "Parallel",
+              "Branches": [
                 {
-                  "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
-                  "IntervalSeconds": 2,
-                  "MaxAttempts": 3,
-                  "BackoffRate": 2.0
+                  "StartAt": "RunDailySynopsis",
+                  "States": {                
+                    "RunDailySynopsis": {
+                      "Type": "Task",
+                      "Resource": "${DailySynopsisFunction.Arn}",
+                      "Retry": [
+                        {
+                          "ErrorEquals": [
+                            "States.TaskFailed", 
+                            "Lambda.ServiceException", 
+                            "Lambda.AWSLambdaException", 
+                            "Lambda.SdkClientException"
+                          ],
+                          "IntervalSeconds": 2,
+                          "MaxAttempts": 3,
+                          "BackoffRate": 2.0
+                        }
+                      ],
+                      "End": true
+                    }
+                  }
+                },
+                {
+                  "StartAt": "RunPortfolioAlerts",
+                  "States": { 
+                    "RunPortfolioAlerts": {
+                      "Type": "Task",
+                      "Resource": "${PortfolioAlertFunction.Arn}",
+                      "End": true
+                    }
+                  }
                 }
-              ]
+              ],
+              "Next": "RunDailyReport"
             },
             "RunDailyReport": {
               "Type": "Task",
@@ -113,6 +212,7 @@ Resources:
             }
           }
         }
+
       RoleArn: !GetAtt StepFunctionsExecutionRole.Arn
 
   StepFunctionsExecutionRole:
@@ -136,6 +236,7 @@ Resources:
                 Resource:
                   - !GetAtt DailySynopsisFunction.Arn
                   - !GetAtt DailyReportFunction.Arn
+                  - !GetAtt PortfolioAlertFunction.Arn
 
   StateMachineExecutionRole:
     Type: "AWS::IAM::Role"
