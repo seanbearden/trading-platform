@@ -42,3 +42,21 @@ def convert_floats_to_decimals(obj):
     elif isinstance(obj, list):
         return [convert_floats_to_decimals(v) for v in obj]
     return obj
+
+
+def safe_put_item(table, item):
+    """
+    Store the position in DynamoDB
+
+    Args:
+        table: DynamoDB table
+        item: dictionary
+
+    Returns:
+        None
+    """
+    try:
+        item = convert_floats_to_decimals(item)
+        table.put_item(Item=item)
+    except Exception as e:
+        print(f"Error storing position {item.get('symbol', 'UNKNOWN')}: {e}")
