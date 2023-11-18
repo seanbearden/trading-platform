@@ -2,6 +2,7 @@
 # If you need more information about configurations
 # or implementing the sample code, visit the AWS docs:
 # https://aws.amazon.com/developer/language/python/
+from decimal import Decimal
 
 import boto3
 from botocore.exceptions import ClientError
@@ -28,3 +29,34 @@ def get_secret(secret_name, region_name="us-east-1"):
     secret = get_secret_value_response['SecretString']
 
     return secret
+
+
+def convert_floats_to_decimals(obj):
+    """
+    Recursively converts float values in a dictionary to decimals.
+    """
+    if isinstance(obj, float):
+        return Decimal(str(obj))
+    elif isinstance(obj, dict):
+        return {k: convert_floats_to_decimals(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_floats_to_decimals(v) for v in obj]
+    return obj
+
+
+def safe_put_item(table, item):
+    """
+    Store the position in DynamoDB
+
+    Args:
+        table: DynamoDB table
+        item: dictionary
+
+    Returns:
+        None
+    """
+    try:
+        item = convert_floats_to_decimals(item)
+        table.put_item(Item=item)
+    except Exception as e:
+        print(f"Error storing position {item.get('symbol', 'UNKNOWN')}: {e}")

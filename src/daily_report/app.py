@@ -1,18 +1,27 @@
+# Standard Python Libraries
+import json
+import os
+import time
+from io import StringIO
+
+# External Libraries and Frameworks
 import numpy as np
 import pandas as pd
-from alpha_vantage.techindicators import TechIndicators
-# from alpha_vantage.timeseries import TimeSeries
-import boto3
-from botocore.client import Config
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Email Libraries
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from io import StringIO
-import json
-import matplotlib.pyplot as plt
-import os
-import seaborn as sns
-import time
 
+# AWS and Boto3 Libraries
+import boto3
+from botocore.client import Config
+
+# Alpha Vantage and Financial Libraries
+from alpha_vantage.techindicators import TechIndicators
+
+# ReportLab Libraries
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -29,56 +38,26 @@ from reportlab.platypus import (
     Image
 )
 
-
+# Custom Modules/Tools
 from tools.alpha_vantage_helper import find_last_crossover
 from tools.ameritrade_helper import analyze_tda, get_specified_account_with_aws, get_expiration_date_summary
 from tools.finviz_helper import get_screener
 from tools.os_helper import delete_files
 
-# # Check if running on AWS Lambda
-# if 'AWS_EXECUTION_ENV' not in os.environ:
-#     # Not running on AWS Lambda, load environment variables from .env file
-#     from dotenv import load_dotenv
-#
-#     load_dotenv()
-
 
 def lambda_handler(event, context):
-    # Check if the event is from DailySynopsisFunction
-    if 'statusCode' in event and 'body' in event:
-        # Deserialize the 'body' to get the actual data
-        synopsis_data = json.loads(event['body'])
+    outputs = {}
+    if isinstance(event, list):
+        for output in event:
+            # Check if the event contents are as expected
+            if 'statusCode' in output and 'body' in output and 'function' in output:
+                # Deserialize the 'body' to get the actual data
+                outputs[output['function']] = json.loads(output['body'])
+            else:
+                return {'statusCode': 500, 'body': 'Missing event dictionary!'}
 
-        # Extract the results or handle the data as needed
-        gpt_daily_synopsis = synopsis_data.get('results', {})
-
-    else:
-        return {'statusCode': 500, 'body': 'Missing event dictionary!'}
-
-    # lambda_client = boto3.client('lambda')
-    # synopsis_attempts = 3
-    # daily_synopsis_function_arn = os.environ['DAILY_SYNOPSIS_FUNCTION_NAME']
-    #
-    # for attempt in range(synopsis_attempts):
-    #     # Invoke DailySynopsisFunction
-    #     lambda_response = lambda_client.invoke(
-    #         FunctionName=daily_synopsis_function_arn,
-    #         InvocationType='RequestResponse',
-    #         Payload=json.dumps(event)
-    #     )
-    #
-    #     lambda_payload = json.loads(lambda_response['Payload'].read())
-    #     lambda_payload_body = json.loads(lambda_payload.get('body', '{}'))
-    #     if lambda_payload.get('statusCode') == 200:
-    #         gpt_daily_synopsis = lambda_payload_body['results']
-    #         break
-    #     elif lambda_payload.get('statusCode') == 500:
-    #         error = lambda_payload_body['error']
-    #         gpt_daily_synopsis = f'There was an error generating the report: {error}'
-    #     else:
-    #         gpt_daily_synopsis = 'There is an unknown error occuring in DailySynopsisFunction'
-
-    # gpt_daily_synopsis = daily_synopsis(temperature=1, model="gpt-4-1106-preview", verbose=True)
+    # Extract the results or handle the data as needed
+        gpt_daily_synopsis = outputs.get('DailySynopsisFunction', {}).get('results', {})
     # files to be removed from /tmp at end of execution
     tmp_files = []
     # Create PDF
@@ -91,8 +70,7 @@ def lambda_handler(event, context):
     alphavantage_api_key = os.environ['ALPHAVANTAGE_API_KEY']
     finviz_api_key = os.environ['FINVIZ_API_KEY']
 
-    account = get_specified_account_with_aws()
-    account_analysis = analyze_tda(account)
+    account_analysis = outputs.get('PortfolioAlertFunction', {}).get('results', {})
     option_position_df = pd.json_normalize(account_analysis['OPTION']['positions'], sep='_')
     expiration_date_summary = get_expiration_date_summary(option_position_df)
     option_table_dict = {}
@@ -372,5 +350,16 @@ def parse_markdown_to_paragraphs(md_text, styles):
 
 
 if __name__ == '__main__':
-    response = lambda_handler({}, {})
+    response = lambda_handler([
+        {
+            'statusCode': 200,
+            'body': '{"results": "TEST 1"}',
+            'function': 'DailySynopsisFunction'
+        },
+        {
+            'statusCode': 200,
+            'body': '{"results": "TEST 2"}',
+            'function': 'PortfolioAlertFunction'
+        }
+    ], {})
     response

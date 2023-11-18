@@ -1,16 +1,22 @@
-import boto3
+# Standard library imports
 from datetime import datetime
 import json
 import logging
 import os
-import pandas as pd
 import re
-import requests
-# from selenium import webdriver
-from tda import auth, client, orders
 import tempfile
-from tools.requests_helper import json_from_response
+
+# Related third-party imports
+import boto3
+import pandas as pd
+import requests
+from tda import auth, client, orders
+# from selenium import webdriver
+
+# Local application/library specific imports
 from tools.aws_helper import get_secret
+from tools.requests_helper import json_from_response
+
 
 
 def tda_auth(api_key,
