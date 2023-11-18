@@ -267,6 +267,39 @@ Resources:
           RoleArn: !GetAtt StateMachineExecutionRole.Arn
       State: "ENABLED"
 
+  DispatcherFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageConfig:
+        Command: [ "app.lambda_handler" ]
+      Architectures: [ x86_64 ]
+      MemorySize: 128
+      Timeout: 60
+      Environment:
+        Variables:
+          TELEGRAM_SECRET_TOKEN: '{{resolve:ssm:/TELEGRAM_SECRET_TOKEN}}'
+          TELEGRAM_USER_ID: '{{resolve:ssm:/TELEGRAM_USER_ID}}'
+          TELEGRAM_BOT_TOKEN: '{{resolve:ssm:/TELEGRAM_BOT_TOKEN}}'
+          PORTFOLIO_ALERT_FUNCTION_NAME: !Ref PortfolioAlertFunction
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /telegram-bot
+            Method: post
+      Policies:
+        - Statement:
+          - Effect: Allow
+            Action:
+              - lambda:InvokeFunction
+            Resource: !GetAtt PortfolioAlertFunction.Arn
+    Metadata:
+      Dockerfile: Dockerfile.dispatcher
+      DockerContext: .
+      DockerTag: v1
+
+
 Outputs:
   ReportBucketName:
     Description: "Name of the bucket to store reports"
@@ -274,3 +307,9 @@ Outputs:
   StateMachineArn:
     Description: "ARN of the Step Functions State Machine"
     Value: !Ref ReportGenerationStateMachine
+  PortfolioAlertFunctionArn:
+    Description: "ARN of Portfolio Alert Function"
+    Value: !Ref PortfolioAlertFunction
+  ApiEvent:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Stage/telegram-bot"
