@@ -36,7 +36,8 @@ This Python project is meant to assist my option-trading endeavors using TD Amer
 2. **Find Your User ID**: Use a service like the `userinfobot` on Telegram to find out your Telegram user ID.
 
 
-## Set Up
+
+## Set Up AWS
 1. Save Alphavantage API key to .env as `ALPHAVANTAGE_API_KEY` for local usage. Save the key to AWS System 
    Manager->Parameter Store as `ALPHAVANTAGE_API_KEY` for AWS Lambda usage.
 2. Set Up Amazon Simple Email Service. 
@@ -58,3 +59,13 @@ This Python project is meant to assist my option-trading endeavors using TD Amer
         "symbol": "MSFT"
     }
     ```
+
+### Set Telegram Webhook
+Set up the webhook for Telegram so user can interact with bot via chat to trigger Lambdas.
+
+```bash
+curl -X POST \
+  -F "url=https://<ServerlessRestApi>.execute-api.<AWS_REGION>.amazonaws.com/Stage/telegram-bot" \
+  -F "secret_token=secret_token" \
+  https://api.telegram.org/bot<TOKEN>/setWebhook
+```
