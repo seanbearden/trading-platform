@@ -1,19 +1,27 @@
-from alpha_vantage.techindicators import TechIndicators
-from alpha_vantage.timeseries import TimeSeries
-import boto3
+# Standard library imports
+import asyncio
+import json
+import os
+import time
 from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-import json
-import matplotlib.pyplot as plt
+
+# Related third-party imports
+import boto3
 import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
 import mplfinance as mpf
+from alpha_vantage.techindicators import TechIndicators
+from alpha_vantage.timeseries import TimeSeries
 from reportlab.pdfgen import canvas
-import time
+
+# Local application/library specific imports
 from tools.alpha_vantage_helper import get_daily_adjusted_processed
 from tools.os_helper import delete_files
 from tools.pattern_helper import calculate_ichimoku
+from tools.telegram_helper import send_png
 
 
 def lambda_handler(event, context):
@@ -24,6 +32,7 @@ def lambda_handler(event, context):
 
     periods_for_plot = body.get('periods_for_plot', 180)
     send_email = body.get('send_email', False)
+    send_telegram = body.get('send_telegram', False)
     symbol = body.get('symbol', None)
 
     # Validate input
@@ -44,10 +53,7 @@ def lambda_handler(event, context):
         c = canvas.Canvas(pdf_path)
         c.drawString(100, 750, "Trading Report")
 
-        # get api keys
-        ssm = boto3.client('ssm')
-        parameter = ssm.get_parameter(Name='ALPHAVANTAGE_API_KEY', WithDecryption=True)
-        alphavantage_api_key = parameter['Parameter']['Value']
+        alphavantage_api_key = os.environ['ALPHAVANTAGE_API_KEY']
 
         # get technical indicators
         ts = TimeSeries(key=alphavantage_api_key, output_format='pandas')
@@ -111,13 +117,13 @@ def lambda_handler(event, context):
         # plt.subplots_adjust(left=0.05)  # Adjust the value as needed to trim the white space
 
         # Save the plot to a file
-        plot_file_path = "/tmp/ichimoku_plot.png"
-        tmp_files.append(plot_file_path)
-        plt.savefig(plot_file_path, format='png')  # , bbox_inches='tight')
+        ichimoku_plot_file_path = "/tmp/ichimoku_plot.png"
+        tmp_files.append(ichimoku_plot_file_path)
+        plt.savefig(ichimoku_plot_file_path, format='png')  # , bbox_inches='tight')
         plt.show()
 
         # Draw the plot on the ReportLab canvas
-        c.drawImage(plot_file_path, -100, 500, width=700, height=350)
+        c.drawImage(ichimoku_plot_file_path, -100, 500, width=700, height=350)
         # Start a new page
         c.showPage()
 
@@ -145,19 +151,25 @@ def lambda_handler(event, context):
         # plt.show()
 
         # Save the plot to a file
-        plot_file_path = "/tmp/plot.png"
-        tmp_files.append(plot_file_path)
-        plt.savefig(plot_file_path, format='png')
+        rsi_plot_file_path = "/tmp/plot.png"
+        tmp_files.append(rsi_plot_file_path)
+        plt.savefig(rsi_plot_file_path, format='png')
 
         # Draw the plot on the ReportLab canvas
-        c.drawImage(plot_file_path, 50, 500, width=400, height=300)
+        c.drawImage(rsi_plot_file_path, 50, 500, width=400, height=300)
 
         # Additional PDF content (e.g., text)
         c.drawString(50, 480, "Sample Plot:")
 
         c.save()
 
+        if send_telegram:
+            bot_token = os.environ['TELEGRAM_BOT_TOKEN']
+            user_id = os.environ['TELEGRAM_USER_ID']
+            asyncio.run(send_png(bot_token, user_id, ichimoku_plot_file_path))
+
         if send_email:
+            ssm = boto3.client('ssm')
             parameter = ssm.get_parameter(Name='FROM_EMAIL', WithDecryption=True)
             from_email = parameter['Parameter']['Value']
             parameter = ssm.get_parameter(Name='TO_EMAILS', WithDecryption=True)
@@ -204,6 +216,6 @@ def lambda_handler(event, context):
 
 if __name__ == '__main__':
     response = lambda_handler(
-        {"body": {"report_type": "stock_analysis", "send_email": True, "symbol": "COE"}},
+        {"body": {"report_type": "stock_analysis", "send_email": True, "send_telegram": True, "symbol": "AAPL"}},
         {})
     response
