@@ -9,7 +9,8 @@ from tools.telegram_helper import send_alert
 lambda_client = boto3.client('lambda')
 
 command_mappings = {
-    '/update': os.environ['PORTFOLIO_ALERT_FUNCTION_NAME']
+    '/update': os.environ['PORTFOLIO_ALERT_FUNCTION_NAME'],
+    '/report': os.environ['GENERATE_REPORT_FUNCTION_NAME']
     # Add more commands here
 }
 
@@ -34,9 +35,10 @@ def lambda_handler(event, context):
                 'statusCode': 200,
                 'body': alert_message
             }
+        message_split = message.split()
+        target_lambda = command_mappings.get(message_split[0])  # Get the command part
 
-        target_lambda = command_mappings.get(message.split()[0])  # Get the command part
-
+        lambda_event = {}
         if not target_lambda:
             alert_message = f'Not a valid command. Try {", ".join(command_mappings.keys())}'
             asyncio.run(send_alert(bot_token, user_id, alert_message))
@@ -44,13 +46,30 @@ def lambda_handler(event, context):
                 'statusCode': 200,
                 'body': alert_message
             }
+        elif target_lambda == command_mappings['/report']:
+            if len(message_split) < 2:
+                alert_message = 'The report command must be followed by a stock symbol. For example: "/report AAPL".'
+                asyncio.run(send_alert(bot_token, user_id, alert_message))
+                return {
+                    'statusCode': 200,
+                    'body': alert_message
+                }
+            else:
+                symbol = message_split[1]
+                alert_message = f'Generating report for {symbol}.'
+                asyncio.run(send_alert(bot_token, user_id, alert_message))
+                lambda_event = {
+                    "body": {
+                        "report_type": "stock_analysis", "send_email": False, "send_telegram": True, "symbol": symbol
+                    }
+                }
 
 
         # Invoke the target Lambda function
         response = lambda_client.invoke(
             FunctionName=target_lambda,
             InvocationType='Event',  # Asynchronous invocation
-            Payload=json.dumps(event)
+            Payload=json.dumps(lambda_event)
         )
         return {
             'statusCode': 200,
@@ -69,7 +88,7 @@ if __name__ == '__main__':
     response = lambda_handler(
         {
             'headers': {'X-Telegram-Bot-Api-Secret-Token': 'XXXXXXXXXXXX'},
-            'body': '{"message": {"text": "/update"}}',
+            'body': '{"message": {"text": "/report AAPL"}}',
         }, {})
     response
 

@@ -10,6 +10,7 @@ COPY src/create_stock_report/requirements.txt ./
 COPY tools/alpha_vantage_helper.py ./tools
 COPY tools/os_helper.py ./tools
 COPY tools/pattern_helper.py ./tools
+COPY tools/telegram_helper.py ./tools
 
 # Install dependencies
 RUN pip install -r requirements.txt

@@ -1,2 +1,2 @@
-boto3==1.29.1
+boto3~=1.29.3
 python-telegram-bot==20.6

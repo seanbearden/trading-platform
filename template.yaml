@@ -39,6 +39,50 @@ Resources:
       BillingMode: PAY_PER_REQUEST
       # Define GSIs if needed
 
+  ReportBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: bearden-data-solutions-report-bucket
+      LifecycleConfiguration:
+        Rules:
+          - Status: Enabled
+            ExpirationInDays: 7
+
+  DispatcherFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageConfig:
+        Command: [ "app.lambda_handler" ]
+      Architectures: [ x86_64 ]
+      MemorySize: 128
+      Timeout: 60
+      Environment:
+        Variables:
+          TELEGRAM_SECRET_TOKEN: '{{resolve:ssm:/TELEGRAM_SECRET_TOKEN}}'
+          TELEGRAM_USER_ID: '{{resolve:ssm:/TELEGRAM_USER_ID}}'
+          TELEGRAM_BOT_TOKEN: '{{resolve:ssm:/TELEGRAM_BOT_TOKEN}}'
+          PORTFOLIO_ALERT_FUNCTION_NAME: !Ref PortfolioAlertFunction
+          GENERATE_REPORT_FUNCTION_NAME: !Ref GenerateReportFunction
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /telegram-bot
+            Method: post
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - lambda:InvokeFunction
+              Resource:
+                - !GetAtt PortfolioAlertFunction.Arn
+                - !GetAtt GenerateReportFunction.Arn
+    Metadata:
+      Dockerfile: Dockerfile.dispatcher
+      DockerContext: .
+      DockerTag: v1
+
   PortfolioAlertFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -76,14 +120,40 @@ Resources:
       DockerContext: .
       DockerTag: v1
 
-  ReportBucket:
-    Type: AWS::S3::Bucket
+  GenerateReportFunction:
+    Type: AWS::Serverless::Function
     Properties:
-      BucketName: bearden-data-solutions-report-bucket
-      LifecycleConfiguration:
-        Rules:
-          - Status: Enabled
-            ExpirationInDays: 7
+      PackageType: Image
+      ImageConfig:
+        Command: [ "app.lambda_handler" ]
+      Architectures: [ x86_64 ]
+      MemorySize: 256  # Specify memory size here
+      Timeout: 300
+      Environment:
+        Variables:
+          ALPHAVANTAGE_API_KEY: '{{resolve:ssm:/ALPHAVANTAGE_API_KEY}}'
+          MPLCONFIGDIR: "/tmp"
+          TELEGRAM_SECRET_TOKEN: '{{resolve:ssm:/TELEGRAM_SECRET_TOKEN}}'
+          TELEGRAM_USER_ID: '{{resolve:ssm:/TELEGRAM_USER_ID}}'
+          TELEGRAM_BOT_TOKEN: '{{resolve:ssm:/TELEGRAM_BOT_TOKEN}}'
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ses:SendEmail
+                - ses:SendRawEmail
+              Resource: "*"
+        - Statement: # New policy statement to allow ssm:GetParameter action
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+              Resource:
+                - arn:aws:ssm:us-east-1:047672427450:parameter/FROM_EMAIL
+                - arn:aws:ssm:us-east-1:047672427450:parameter/TO_EMAILS
+    Metadata:
+      Dockerfile: Dockerfile.generate_report
+      DockerContext: .
+      DockerTag: v1
 
   DailySynopsisFunction:
     Type: AWS::Serverless::Function
@@ -266,38 +336,6 @@ Resources:
           Id: "StateMachineTrigger"
           RoleArn: !GetAtt StateMachineExecutionRole.Arn
       State: "ENABLED"
-
-  DispatcherFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      PackageType: Image
-      ImageConfig:
-        Command: [ "app.lambda_handler" ]
-      Architectures: [ x86_64 ]
-      MemorySize: 128
-      Timeout: 60
-      Environment:
-        Variables:
-          TELEGRAM_SECRET_TOKEN: '{{resolve:ssm:/TELEGRAM_SECRET_TOKEN}}'
-          TELEGRAM_USER_ID: '{{resolve:ssm:/TELEGRAM_USER_ID}}'
-          TELEGRAM_BOT_TOKEN: '{{resolve:ssm:/TELEGRAM_BOT_TOKEN}}'
-          PORTFOLIO_ALERT_FUNCTION_NAME: !Ref PortfolioAlertFunction
-      Events:
-        ApiEvent:
-          Type: Api
-          Properties:
-            Path: /telegram-bot
-            Method: post
-      Policies:
-        - Statement:
-          - Effect: Allow
-            Action:
-              - lambda:InvokeFunction
-            Resource: !GetAtt PortfolioAlertFunction.Arn
-    Metadata:
-      Dockerfile: Dockerfile.dispatcher
-      DockerContext: .
-      DockerTag: v1
 
 
 Outputs:
