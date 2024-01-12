@@ -21,7 +21,7 @@ This Python project is meant to assist my option-trading endeavors using TD Amer
 - Set up Telegram bot [Set Up Telegram](#set-up-telegram)
 - IAM_ACCESS_KEY_ID and IAM_SECRET_ACCESS_KEY
 - GOOGLE_API_KEY and GOOGLE_CSE_ID
-
+    
 ## Set Up Telegram
 ### 1. Create a Telegram Bot
 

@@ -216,7 +216,7 @@ def update_graph(selected_value, account_data):
                 title={'text': symbol},
                 delta={'reference': quotes[symbol]['closePrice'], 'relative': True, 'valueformat': ".2%"},
             ),
-                row=1, col=i + 1
+                row=1, col=i + 14
             )
 
     else:
